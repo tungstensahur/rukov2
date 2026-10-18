@@ -2,7 +2,7 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
-let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{}};
+let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{}};
 // Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
 // database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
 const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
@@ -15,11 +15,12 @@ const views={
  thumbs:()=>D.games.filter(g=>g.thumb).map(g=>[g.id,g.thumb]),
  sales:()=>Object.entries(D.sales).map(([k,v])=>[k,String(v)]),
  likes:()=>Object.entries(D.likes).map(([k,v])=>[k,JSON.stringify(v)]),
- shirtimgs:()=>Object.entries(D.shirtImg)};
+ shirtimgs:()=>Object.entries(D.shirtImg),
+ plays:()=>Object.entries(D.plays).map(([k,v])=>[k,String(v)])};
 const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
 const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
 async function loadRedis(){
- const[u,s,h,g,t,sa,l,si]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs'].map(hall));D.shirtImg=si;
+ const[u,s,h,g,t,sa,l,si,pl]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays'].map(hall));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
  D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
  D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
  D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
@@ -54,6 +55,10 @@ const send=(res,c,o)=>{res.writeHead(c,{'content-type':'application/json'});res.
 const body=req=>new Promise((ok,no)=>{let s='';req.on('data',d=>{s+=d;if(s.length>400000){no();req.destroy()}});req.on('end',()=>ok(s))});
 const who=req=>{const t=(req.headers.authorization||'').slice(7)||new URL(req.url,'http://x').searchParams.get('token'),k=D.sessions[t];const u=k&&D.users[k]&&!D.users[k].banned?D.users[k]:null;if(u)seen.set(u.name,Date.now());return u};
 const tries={},rooms={},lc=new Map(),seen=new Map(),chat=[];let cid=0;
+// Players who were just assigned a server hold a slot for 15 seconds so two people can't be sent to the last free spot.
+const resv=new Map();
+const roomLoad=(id,name,now)=>{const r=rooms[id];let n=r?r.cl.size:0;const m=resv.get(id);if(m)for(const[k,t]of[...m]){if(t<now)m.delete(k);else if(k!==name&&!(r&&[...r.cl.values()].some(c=>c.name===k)))n++}return n};
+const reserve=(id,name,now)=>{if(!resv.has(id))resv.set(id,new Map());resv.get(id).set(name,now+15000)};
 // Admin account "Ruko": password comes from the ADMIN_PASSWORD environment variable (never stored in the code).
 function seedAdmin(){const AP=process.env.ADMIN_PASSWORD;
 if(AP){const old=D.users.ruko||{name:'Ruko',coins:500,owned:['r1'],worn:'r1',av:null,earn:[]},s=old.salt||rnd(16);D.users.ruko=Object.assign(old,{name:'Ruko',admin:true,salt:s,hash:hashPw(AP,s)});save()}
@@ -157,7 +162,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p=='/api/game'){const g=D.games.find(x=>x.id==new URL(req.url,'http://x').searchParams.get('id'));return g?send(res,200,{game:{...g,thumb:undefined}}):send(res,404,{error:'Not found.'})}
  if(p=='/api/games'){
-  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0}))});
+  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0})),plays:D.plays});
   if(!me)return need();
   const objs=Array.isArray(b.objs)?b.objs.slice(0,150).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-60,60,0),y:clamp(o.y,-5,60,0),z:clamp(o.z,-60,60,0)};
    if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,80,3);r.sz=clamp(o.sz,.5,80,3);r.th=clamp(o.th,.25,20,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
@@ -212,13 +217,20 @@ const server=http.createServer(async(req,res)=>{
   if(b.mute!=null&&!u.admin)u.muted=!!b.mute;
   save();return send(res,200,{ok:1});
  }
+ if(p=='/api/servers/assign'){
+  if(!me)return need();
+  const gid=String(b.game||'');if(!/^\w{1,30}$/.test(gid)||(!D.games.some(g=>g.id==gid)&&!['g1','g2','g3'].includes(gid)))return send(res,404,{error:'No such game.'});
+  const now=Date.now();
+  for(let n=1;n<=50;n++){const id='srv'+gid+'x'+n;if(roomLoad(id,me.name,now)<10){reserve(id,me.name,now);D.plays[gid]=(D.plays[gid]||0)+1;save();return send(res,200,{server:gid+'x'+n})}}
+  return send(res,503,{error:'All servers are full right now. Try again soon.'});
+ }
  if(p=='/api/servers'){const players=[];for(const id in rooms)for(const c of rooms[id].cl.values())players.push({server:id.slice(3),name:c.name});return send(res,200,{players})}
  if(p.startsWith('/api/room/')){
   if(!me)return need();
   const id=decodeURIComponent(p.split('/')[3]||'');if(!/^srv\w{1,40}$/.test(id))return send(res,400,{error:'Bad room'});
   if(p.endsWith('/stream')){
-   const r=room(id);if(r.cl.size>=10)return send(res,409,{error:'Server full'});
-   const peer=rnd(6);res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'});
+   const r=room(id);if(roomLoad(id,me.name,Date.now())>=10)return send(res,409,{error:'Server full'});
+   const peer=rnd(6);if(resv.get(id))resv.get(id).delete(me.name);res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'});
    res.write('retry: 3000\n\n');r.cl.set(peer,{res,name:me.name,presence:null,hp:r.pv?r.pv.hp:0,k:0,d:0,own:r.pv?[...r.pv.startW]:[],cw:r.pv&&r.pv.startW.length?r.pv.startW[0]:-1,dead:0,inv:Date.now()+2000,lf:0,rt:0});res.write('data: '+JSON.stringify({hello:peer})+'\n\n');r.dirty=1;
    req.on('close',()=>{r.cl.delete(peer);r.dirty=1;if(!r.cl.size&&rooms[id]===r)delete rooms[id]});return;
   }

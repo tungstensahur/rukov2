@@ -31,3 +31,8 @@ Click any username (catalog, games, chat, servers) to open their profile, or use
 Players design shirts in Creator Studio > T-shirts. Shirts stay hidden until the Ruko account approves them in the Admin tab
 (a count shows next to Admin). Game creators can add weapons (sword, pistol, rifle, shotgun, sniper, custom), place weapon pickups
 and spawn points, and turn on PVP. PVP damage only happens on servers (the Servers tab), where the server decides every hit.
+
+## Auto-join and game search
+Pressing Play on a game now puts you in the first server that has room (Server 1 until it holds 10 players, then Server 2, and so on).
+"Practice solo" on each card starts a solo run. The Games tab has search (name, creator, genre, description), sorting
+(most players now, most played, newest, A to Z), genre filters and a PVP-only filter. The Servers tab has its own search.
