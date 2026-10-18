@@ -3,29 +3,60 @@ const http=require('http'),fs=require('fs'),path=require('path'),crypto=require(
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
 let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{}};
-try{D=Object.assign(D,JSON.parse(fs.readFileSync(FILE,'utf8')))}catch(e){}
-let dirty=0;const save=()=>{dirty=1};
-const flush=()=>{if(!dirty)return;dirty=0;fs.writeFile(FILE+'.tmp',JSON.stringify(D),e=>{if(!e)fs.rename(FILE+'.tmp',FILE,()=>{})})};
-setInterval(flush,2000);
-process.on('SIGTERM',()=>{try{fs.writeFileSync(FILE,JSON.stringify(D))}catch(e){}process.exit(0)});
+// Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
+// database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
+const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
+let dirty=0,busy=0,last={};const save=()=>{dirty=1};
+const views={
+ users:()=>Object.entries(D.users).map(([k,v])=>[k,JSON.stringify(v)]),
+ sessions:()=>Object.entries(D.sessions),
+ hats:()=>D.hats.map(h=>[h.id,JSON.stringify(h)]),
+ games:()=>D.games.map(g=>{const{thumb,...r}=g;return[g.id,JSON.stringify(r)]}),
+ thumbs:()=>D.games.filter(g=>g.thumb).map(g=>[g.id,g.thumb]),
+ sales:()=>Object.entries(D.sales).map(([k,v])=>[k,String(v)]),
+ likes:()=>Object.entries(D.likes).map(([k,v])=>[k,JSON.stringify(v)])};
+const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
+const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
+async function loadRedis(){
+ const[u,s,h,g,t,sa,l]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes'].map(hall));
+ D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
+ D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
+ D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
+ D.sales=Object.fromEntries(Object.entries(sa).map(([k,v])=>[k,+v]));D.likes=Object.fromEntries(Object.entries(l).map(([k,v])=>[k,JSON.parse(v)]));
+ last={};for(const c in views)last[c]=new Map(views[c]());
+ return Object.keys(D.users).length>0}
+async function flush(){
+ if(!dirty||busy)return;busy=1;dirty=0;
+ try{
+  if(REDIS){
+   const cmds=[],next={};
+   for(const c in views){const cur=new Map(views[c]()),prev=last[c]||new Map();for(const[k,v]of cur)if(prev.get(k)!==v)cmds.push(['HSET','ruko:'+c,k,v]);for(const k of prev.keys())if(!cur.has(k))cmds.push(['HDEL','ruko:'+c,k]);next[c]=cur}
+   let chunk=[],size=0;const go=async()=>{if(!chunk.length)return;const j=await rcall('/pipeline',chunk);const bad=Array.isArray(j)&&j.find(x=>x&&x.error);if(bad)throw new Error(bad.error);chunk=[];size=0};
+   for(const c of cmds){const n=JSON.stringify(c).length;if(size+n>700000)await go();chunk.push(c);size+=n}
+   await go();last=next;
+  }else{fs.writeFileSync(FILE+'.tmp',JSON.stringify(D));fs.renameSync(FILE+'.tmp',FILE)}
+ }catch(e){dirty=1;console.error('Save failed, will retry:',e.message)}
+ finally{busy=0}}
+setInterval(flush,4000);
+process.on('SIGTERM',async()=>{dirty=1;busy=0;try{await flush()}catch(e){}process.exit(0)});
 const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
-const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin});
+const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,bio:u.bio||'',joined:u.joined||0});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
 const clamp=(v,a,b,d)=>Math.max(a,Math.min(b,Number.isFinite(+v)?+v:d));
 const col=c=>/^#[0-9a-fA-F]{6}$/.test(c)?c:'#888888';
 const av=a=>a&&typeof a=='object'?{skin:col(a.skin),shirt:col(a.shirt),pants:col(a.pants),face:clamp(a.face,0,3,0)|0}:null;
 const send=(res,c,o)=>{res.writeHead(c,{'content-type':'application/json'});res.end(JSON.stringify(o))};
 const body=req=>new Promise((ok,no)=>{let s='';req.on('data',d=>{s+=d;if(s.length>200000){no();req.destroy()}});req.on('end',()=>ok(s))});
-const who=req=>{const t=(req.headers.authorization||'').slice(7)||new URL(req.url,'http://x').searchParams.get('token'),k=D.sessions[t];return k&&D.users[k]&&!D.users[k].banned?D.users[k]:null};
-const tries={},rooms={},lc=new Map(),chat=[];let cid=0;
+const who=req=>{const t=(req.headers.authorization||'').slice(7)||new URL(req.url,'http://x').searchParams.get('token'),k=D.sessions[t];const u=k&&D.users[k]&&!D.users[k].banned?D.users[k]:null;if(u)seen.set(u.name,Date.now());return u};
+const tries={},rooms={},lc=new Map(),seen=new Map(),chat=[];let cid=0;
 // Admin account "Ruko": password comes from the ADMIN_PASSWORD environment variable (never stored in the code).
-const AP=process.env.ADMIN_PASSWORD;
+function seedAdmin(){const AP=process.env.ADMIN_PASSWORD;
 if(AP){const old=D.users.ruko||{name:'Ruko',coins:500,owned:['r1'],worn:'r1',av:null,earn:[]},s=old.salt||rnd(16);D.users.ruko=Object.assign(old,{name:'Ruko',admin:true,salt:s,hash:hashPw(AP,s)});save()}
-else{if(D.users.ruko)D.users.ruko.admin=false;console.log('ADMIN_PASSWORD not set: the Ruko admin account is disabled.')}
+else{if(D.users.ruko)D.users.ruko.admin=false;console.log('ADMIN_PASSWORD not set: the Ruko admin account is disabled.')}}
 const room=id=>rooms[id]||(rooms[id]={cl:new Map(),dirty:0});
-http.createServer(async(req,res)=>{
+const server=http.createServer(async(req,res)=>{
  const p=new URL(req.url,'http://x').pathname;
  if(!p.startsWith('/api/')){res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(INDEX)}
  let b={};if(req.method=='POST'){try{b=JSON.parse(await body(req)||'{}')}catch(e){return send(res,400,{error:'Bad request'})}}
@@ -40,11 +71,11 @@ http.createServer(async(req,res)=>{
    if(k=='ruko')return send(res,400,{error:'That name is reserved.'});
    if(pw.length<6||pw.length>100)return send(res,400,{error:'Password needs 6+ characters.'});
    if(D.users[k])return send(res,400,{error:'Username taken.'});
-   const salt=rnd(16);D.users[k]={name,salt,hash:hashPw(pw,salt),coins:500,owned:['r1'],worn:'r1',av:null,earn:[]};
+   const salt=rnd(16);D.users[k]={name,salt,hash:hashPw(pw,salt),joined:Date.now(),bio:'',coins:500,owned:['r1'],worn:'r1',av:null,earn:[]};
   }else{const x=D.users[k];if(!x||hashPw(pw,x.salt)!==x.hash)return send(res,400,{error:'Wrong username or password.'});if(x.banned)return send(res,403,{error:'This account is banned.'})}
   const t=rnd(24);D.sessions[t]=k;save();return send(res,200,{token:t,me:pubUser(D.users[k])});
  }
- if(p=='/api/me'){if(!me)return need();if(req.method=='POST'){if(b.av)me.av=av(b.av);if(b.worn===null||me.owned.includes(b.worn))me.worn=b.worn;save()}return send(res,200,{me:pubUser(me)})}
+ if(p=='/api/me'){if(!me)return need();if(req.method=='POST'){if(b.av)me.av=av(b.av);if(typeof b.bio=='string')me.bio=b.bio.replace(/\s+/g,' ').trim().slice(0,160);if(b.worn===null||me.owned.includes(b.worn))me.worn=b.worn;save()}return send(res,200,{me:pubUser(me)})}
  if(p=='/api/hats'){
   if(req.method=='GET'){const lk={};for(const id in D.likes)lk[id]=D.likes[id].length;return send(res,200,{hats:D.hats,sales:D.sales,likes:lk,liked:me?Object.keys(D.likes).filter(id=>D.likes[id].includes(me.name)):[]})}
   if(!me)return need();
@@ -77,6 +108,22 @@ http.createServer(async(req,res)=>{
  if(p=='/api/admin/chatdel'){
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
   const i=chat.findIndex(m=>m.id==b.id);if(i>=0)chat.splice(i,1);return send(res,200,{ok:1});
+ }
+ if(p=='/api/profile'){
+  if(!me)return need();
+  const u=D.users[String(new URL(req.url,'http://x').searchParams.get('name')||'').toLowerCase()];
+  if(!u||(u.banned&&!me.admin))return send(res,404,{error:'No such player.'});
+  let playing=null;for(const id in rooms)for(const c of rooms[id].cl.values())if(c.name===u.name)playing=id.slice(3);
+  return send(res,200,{p:{name:u.name,admin:!!u.admin,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
+ }
+ if(p=='/api/players'){
+  if(!me)return need();
+  const q=String(new URL(req.url,'http://x').searchParams.get('q')||'').toLowerCase();
+  return send(res,200,{players:Object.values(D.users).filter(u=>!u.banned&&(!q||u.name.toLowerCase().includes(q))).map(u=>({name:u.name,admin:!!u.admin,online:(seen.get(u.name)||0)>Date.now()-120000})).sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name)).slice(0,30)});
+ }
+ if(p=='/api/admin/export'){
+  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  return send(res,200,D);
  }
  if(p=='/api/game'){const g=D.games.find(x=>x.id==new URL(req.url,'http://x').searchParams.get('id'));return g?send(res,200,{game:{...g,thumb:undefined}}):send(res,404,{error:'Not found.'})}
  if(p=='/api/games'){
@@ -158,6 +205,16 @@ http.createServer(async(req,res)=>{
  }
  send(res,404,{error:'Not found'});
  }catch(e){console.error(e);send(res,500,{error:'Server error'})}
-}).listen(PORT,()=>console.log('Ruko running on port '+PORT));
+});
 setInterval(()=>{for(const id in rooms){const r=rooms[id];if(!r.dirty)continue;r.dirty=0;const m='data: '+JSON.stringify({peers:[...r.cl].map(([peer,c])=>({peer,name:c.name,presence:c.presence||{}}))})+'\n\n';for(const c of r.cl.values())c.res.write(m)}},100);
 setInterval(()=>{for(const r of Object.values(rooms))for(const c of r.cl.values())c.res.write(': ping\n\n')},15000);
+
+(async()=>{
+ let fileData=null;try{fileData=JSON.parse(fs.readFileSync(FILE,'utf8'))}catch(e){}
+ if(REDIS){
+  let had=false;try{had=await loadRedis()}catch(e){console.error('Could not read from Redis. Not starting, so no data gets overwritten:',e.message);process.exit(1)}
+  if(!had&&fileData){Object.assign(D,fileData);D.likes=D.likes||{};dirty=1;console.log('Redis was empty: copying the local data file into it.')}
+  else console.log(had?'Loaded all data from Redis.':'Redis is empty: starting fresh.');
+ }else{if(fileData)Object.assign(D,fileData);console.log('No Redis configured: saving to a local file (lost if the host resets its disk).')}
+ seedAdmin();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
+})();
