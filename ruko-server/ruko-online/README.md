@@ -26,3 +26,8 @@ The Admin tab has a "Download full backup" button as an extra safety net.
 
 ## Profiles
 Click any username (catalog, games, chat, servers) to open their profile, or use the Profile button / Find players.
+
+## T-shirts and weapons
+Players design shirts in Creator Studio > T-shirts. Shirts stay hidden until the Ruko account approves them in the Admin tab
+(a count shows next to Admin). Game creators can add weapons (sword, pistol, rifle, shotgun, sniper, custom), place weapon pickups
+and spawn points, and turn on PVP. PVP damage only happens on servers (the Servers tab), where the server decides every hit.
