@@ -54,3 +54,9 @@ Coins collected or won inside games are only a score for that run and are no lon
 Creators earn 50% of the price (rounded down) every time someone else buys their item, and 10 Rukos per visit to their game
 (a visit is joining a server; the same player only pays out once per game every 10 minutes, and your own visits never pay).
 The built-in Ruko hats and games pay the Ruko account. Earnings show in Creator Studio > My creations.
+
+## More faces and the new item editor
+22 faces (picked from a grid of previews in the Avatar tab). The item editor is built for phones: a preview that stays on screen while you edit,
+tabs (Shape, Move, Size, Turn, Paint, More) with big minus/plus buttons that repeat when held, 15 shapes (new: star, heart, cross, hexagon, spike),
+a color palette, finishes and see-through, mirroring, "copies in a circle" for crowns and spikes, 12 templates, drag-to-spin preview,
+undo/redo, up to 24 parts, and an automatic draft so you do not lose work.

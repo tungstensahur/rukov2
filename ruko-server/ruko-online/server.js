@@ -58,7 +58,7 @@ const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,a
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
 const clamp=(v,a,b,d)=>Math.max(a,Math.min(b,Number.isFinite(+v)?+v:d));
 const col=c=>/^#[0-9a-fA-F]{6}$/.test(c)?c:'#888888';
-const av=a=>a&&typeof a=='object'?{skin:col(a.skin),shirt:col(a.shirt),pants:col(a.pants),face:clamp(a.face,0,3,0)|0,tee:typeof a.tee=='string'&&/^[\w-]{1,30}$/.test(a.tee)?a.tee:undefined}:null;
+const av=a=>a&&typeof a=='object'?{skin:col(a.skin),shirt:col(a.shirt),pants:col(a.pants),face:clamp(a.face,0,40,0)|0,tee:typeof a.tee=='string'&&/^[\w-]{1,30}$/.test(a.tee)?a.tee:undefined}:null;
 const send=(res,c,o)=>{res.writeHead(c,{'content-type':'application/json'});res.end(JSON.stringify(o))};
 const body=req=>new Promise((ok,no)=>{let s='';req.on('data',d=>{s+=d;if(s.length>400000){no();req.destroy()}});req.on('end',()=>ok(s))});
 const who=req=>{const t=(req.headers.authorization||'').slice(7)||new URL(req.url,'http://x').searchParams.get('token'),k=D.sessions[t];const u=k&&D.users[k]&&!D.users[k].banned?D.users[k]:null;if(u)seen.set(u.name,Date.now());return u};
@@ -98,7 +98,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method=='GET'){const lk={};for(const id in D.likes)lk[id]=D.likes[id].length;return send(res,200,{hats:D.hats.filter(h=>h.status!=='pending'&&h.status!=='rejected'),mine:me?D.hats.filter(h=>h.creator===me.name&&(h.status==='pending'||h.status==='rejected')):[],sales:D.sales,meta:D.meta,likes:lk,liked:me?Object.keys(D.likes).filter(id=>D.likes[id].includes(me.name)):[]})}
   if(!me)return need();
   if(D.hats.filter(h=>h.creator==me.name).length>=50)return send(res,400,{error:'Hat limit reached (50).'});
-  const parts=(Array.isArray(b.parts)?b.parts:[]).slice(0,16).map(q=>({t:['cylinder','cone','dome','sphere','box','torus','pyramid','prism','octa','ico'].includes(q.t)?q.t:'box',c:col(q.c),f:['matte','shiny','metal','glass','neon'].includes(q.f)?q.f:'matte',sx:clamp(q.sx,.05,3,.5),sy:clamp(q.sy,.05,3,.5),sz:clamp(q.sz,.05,3,.5),x:clamp(q.x,-1.6,1.6,0),y:clamp(q.y,-1.5,2.5,0),z:clamp(q.z,-1.6,1.6,0),r:clamp(q.r,-90,90,0),q:clamp(q.q,-90,90,0),ry:clamp(q.ry,-180,180,0),m:!!q.m}));
+  const parts=(Array.isArray(b.parts)?b.parts:[]).slice(0,24).map(q=>({t:['cylinder','cone','dome','sphere','box','torus','pyramid','prism','octa','ico','star','heart','cross','hexagon','spike'].includes(q.t)?q.t:'box',c:col(q.c),f:['matte','shiny','metal','glass','neon'].includes(q.f)?q.f:'matte',sx:clamp(q.sx,.05,3,.5),sy:clamp(q.sy,.05,3,.5),sz:clamp(q.sz,.05,3,.5),x:clamp(q.x,-1.6,1.6,0),y:clamp(q.y,-1.5,2.5,0),z:clamp(q.z,-1.6,1.6,0),r:clamp(q.r,-90,90,0),q:clamp(q.q,-90,90,0),ry:clamp(q.ry,-180,180,0),rep:clamp(q.rep,1,12,1)|0,op:clamp(q.op,.1,1,1),m:!!q.m}));
   if(!parts.length)return send(res,400,{error:'A hat needs at least one part.'});
   const id=/^h[0-9a-z]{6,20}$/.test(b.id)&&!D.hats.some(h=>h.id==b.id)?b.id:'h'+rnd(5);
   D.hats.push({id,name:String(b.name||'Untitled').slice(0,20),creator:me.name,price:clamp(b.price,0,1000,100)|0,parts,slot:['head','face','back'].includes(b.slot)?b.slot:'head',base:0,at:Date.now()});save();return send(res,200,{id});
