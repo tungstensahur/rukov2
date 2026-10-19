@@ -45,6 +45,7 @@ const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
+const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
 const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,bio:u.bio||'',joined:u.joined||0,pend:u.admin?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
@@ -151,6 +152,10 @@ const server=http.createServer(async(req,res)=>{
   if(h.status!=='approved'&&!(me&&(me.admin||me.name===h.creator)))return send(res,404,{error:'Not found'});
   res.writeHead(200,{'content-type':m[1],'cache-control':h.status==='approved'?'public, max-age=86400':'private, no-store'});return res.end(Buffer.from(m[2],'base64'));
  }
+ if(p=='/api/admin/all'){
+  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length]))});
+ }
  if(p=='/api/admin/pending'){
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
   return send(res,200,{items:D.hats.filter(h=>h.status==='pending')});
@@ -173,8 +178,8 @@ const server=http.createServer(async(req,res)=>{
   const ex=b.update?D.games.find(g=>g.id==b.id):null;
   if(ex&&ex.creator!==me.name&&!me.admin)return send(res,403,{error:'That is not your game.'});
   if(!ex&&D.games.filter(g=>g.creator==me.name).length>=30)return send(res,400,{error:'Game limit reached (30).'});
-  const W=Array.isArray(b.weapons)?b.weapons.slice(0,6).map(w=>({n:String(w.n||'Weapon').slice(0,16),t:w.t=='melee'?'melee':'gun',dmg:clamp(w.dmg,1,100,15),cd:clamp(w.cd,.1,3,.4),rng:clamp(w.rng,2,200,w.t=='melee'?4.5:80),pel:clamp(w.pel,1,8,1)|0,spr:clamp(w.spr,0,20,0),c:col(w.c)})):[];
-  const SW=Array.isArray(b.startW)?b.startW.map(i=>i|0).filter(i=>i>=0&&i<W.length).slice(0,1):[];
+  const W=Array.isArray(b.weapons)?b.weapons.slice(0,6).map(w=>({n:String(w.n||'Weapon').slice(0,16),t:w.t=='melee'?'melee':'gun',dmg:clamp(w.dmg,1,100,15),cd:clamp(w.cd,.1,3,.4),rng:clamp(w.rng,2,200,w.t=='melee'?4.5:80),pel:clamp(w.pel,1,8,1)|0,spr:clamp(w.spr,0,20,0),m:['blade','knife','hammer','pistol','smg','rifle','shotgun','sniper'].includes(w.m)?w.m:(w.t=='melee'?'blade':'pistol'),mag:clamp(w.mag,0,100,0)|0,rel:clamp(w.rel,.5,5,1.5),auto:w.auto!==false,c:col(w.c)})):[];
+  const SW=Array.isArray(b.startW)?b.startW.map(i=>i|0).filter((i,n,a)=>i>=0&&i<W.length&&a.indexOf(i)==n).slice(0,3):[];
   const f={name:String(b.name||'Untitled').slice(0,24),desc:String(b.desc||'').slice(0,80),genre:['Obby','Adventure','Parkour','Chill','Puzzle'].includes(b.genre)?b.genre:'Obby',mode:['obby','coins','roam','custom'].includes(b.mode)?b.mode:'obby',sky:col(b.sky),ground:col(b.ground),size:clamp(b.size,5,40,16)|0,seed:clamp(b.seed,1,999999,1)|0,spd:clamp(b.spd,4,14,7),jmp:clamp(b.jmp,6,16,9),grav:clamp(b.grav,10,40,22),coinN:clamp(b.coinN,5,60,25)|0,cps:!!b.cps,pvp:!!b.pvp&&W.length>0,hp:clamp(b.hp,20,500,100)|0,resp:clamp(b.resp,1,15,3),weapons:W,startW:SW,light:clamp(b.light,.3,1.6,1),fog:b.fog!==false,killY:clamp(b.killY,-80,-5,-15),objs};
   if(ex){Object.assign(ex,f);if(th){ex.thumb=th;ex.tv=Date.now()}else if(b.dropThumb){delete ex.thumb;ex.tv=0}save();return send(res,200,{id:ex.id})}
   const id=/^c\d{10,14}$/.test(b.id)&&!D.games.some(g=>g.id==b.id)?b.id:'c'+Date.now()+rnd(1).replace(/\D/g,'');
@@ -200,12 +205,12 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
   const hat=p.endsWith('hat'),L=hat?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
   if(b.action=='delete'){L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id]}}
-  else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat)x.price=clamp(b.price,0,1000,x.price)|0;else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80)}
+  else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat)x.price=clamp(b.price,0,1000,x.price)|0;else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80);if(!hat&&b.dropThumb){delete x.thumb;x.tv=0}}
   save();return send(res,200,{ok:1});
  }
  if(p=='/api/admin/users'){
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
-  return send(res,200,{users:Object.values(D.users).map(u=>({name:u.name,coins:u.coins,owned:u.owned.length,banned:!!u.banned,muted:!!u.muted,admin:!!u.admin}))});
+  return send(res,200,{users:Object.values(D.users).map(u=>({name:u.name,coins:u.coins,owned:u.owned.length,banned:!!u.banned,muted:!!u.muted,admin:!!u.admin,joined:u.joined||0,online:(seen.get(u.name)||0)>Date.now()-120000}))});
  }
  if(p=='/api/admin/grant'){
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
@@ -231,16 +236,19 @@ const server=http.createServer(async(req,res)=>{
   if(p.endsWith('/stream')){
    const r=room(id);if(roomLoad(id,me.name,Date.now())>=10)return send(res,409,{error:'Server full'});
    const peer=rnd(6);if(resv.get(id))resv.get(id).delete(me.name);res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'});
-   res.write('retry: 3000\n\n');r.cl.set(peer,{res,name:me.name,presence:null,hp:r.pv?r.pv.hp:0,k:0,d:0,own:r.pv?[...r.pv.startW]:[],cw:r.pv&&r.pv.startW.length?r.pv.startW[0]:-1,dead:0,inv:Date.now()+2000,lf:0,rt:0});res.write('data: '+JSON.stringify({hello:peer})+'\n\n');r.dirty=1;
+   res.write('retry: 3000\n\n');r.cl.set(peer,{res,name:me.name,presence:null,hp:r.pv?r.pv.hp:0,k:0,d:0,own:r.pv?[...r.pv.startW]:[],cw:r.pv&&r.pv.startW.length?r.pv.startW[0]:-1,dead:0,inv:Date.now()+2000,lf:0,rt:0,am:{},rl:0,rw:-1});res.write('data: '+JSON.stringify({hello:peer})+'\n\n');r.dirty=1;
    req.on('close',()=>{r.cl.delete(peer);r.dirty=1;if(!r.cl.size&&rooms[id]===r)delete rooms[id]});return;
   }
-  if(p.endsWith('/fire')||p.endsWith('/pick')||p.endsWith('/sw')){
+  if(p.endsWith('/fire')||p.endsWith('/pick')||p.endsWith('/sw')||p.endsWith('/reload')){
    const r=rooms[id],c=r&&r.cl.get(String(b.peer));if(!c||c.name!==me.name||!r.pv)return send(res,404,{});
    const pv=r.pv,now=Date.now(),ps=c.presence;
-   if(p.endsWith('/sw')){const i=b.i|0;if(c.own.includes(i)){c.cw=i;r.dirty=1}return send(res,200,{ok:1})}
+   if(p.endsWith('/sw')){const i=b.i|0;if(c.own.includes(i)){c.cw=i;c.rl=0;r.dirty=1}return send(res,200,{ok:1})}
+   if(p.endsWith('/reload')){const w=pv.wd[c.cw];if(w&&w.mag>0&&!c.rl&&!c.dead&&(c.am[c.cw]!=null?c.am[c.cw]:w.mag)<w.mag){c.rl=now+w.rel*1000;c.rw=c.cw;r.dirty=1}return send(res,200,{ok:1})}
    if(p.endsWith('/pick')){const o=pv.objs[b.i|0];if(o&&o.k=='w'&&pv.wd[o.wi]&&ps&&Math.hypot(o.x-ps.x,o.z-ps.z)<3.5&&Math.abs(o.y-ps.y)<4&&!c.dead){if(!c.own.includes(o.wi))c.own.push(o.wi);c.cw=o.wi;r.dirty=1}return send(res,200,{ok:1})}
    const wd=pv.wd[c.cw];if(c.dead||!wd||!ps)return send(res,200,{ok:0});
+   if(c.rl&&now<c.rl)return send(res,200,{ok:0});
    if(now-c.lf<wd.cd*1000-120)return send(res,200,{ok:0});c.lf=now;
+   if(wd.mag>0){const cur=c.am[c.cw]!=null?c.am[c.cw]:wd.mag;if(cur<=0){c.rl=now+wd.rel*1000;c.rw=c.cw;r.dirty=1;return send(res,200,{ok:0})}c.am[c.cw]=cur-1;if(cur-1<=0){c.rl=now+wd.rel*1000;c.rw=c.cw}r.dirty=1}
    let dx=+b.dx||0,dz=+b.dz||0;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
    const oy=ps.y+1.6,dmg=new Map(),fx=[],targets=[...r.cl].filter(([k,v])=>v!==c&&!v.dead&&v.presence&&v.inv<=now);
    if(wd.t=='melee'){
@@ -254,7 +262,7 @@ const server=http.createServer(async(req,res)=>{
    }
    if(fx.length)bc(r,{t:'fx',peer:String(b.peer),w:fx});
    for(const[k,d]of dmg){const v=r.cl.get(k);v.hp-=d;bc(r,{t:'hit',target:k,by:String(b.peer)});
-    if(v.hp<=0){v.hp=0;v.dead=1;v.rt=now+pv.resp*1000;v.d++;c.k++;v.own=[];v.cw=-1;bc(r,{t:'kill',by:String(b.peer),target:k,bn:c.name,tn:v.name})}}
+    if(v.hp<=0){v.hp=0;v.dead=1;v.rt=now+pv.resp*1000;v.d++;c.k++;v.own=[];v.cw=-1;v.am={};v.rl=0;bc(r,{t:'kill',by:String(b.peer),target:k,bn:c.name,tn:v.name})}}
    r.dirty=1;return send(res,200,{ok:1});
   }
   if(p.endsWith('/chat')){
@@ -273,7 +281,7 @@ const server=http.createServer(async(req,res)=>{
  send(res,404,{error:'Not found'});
  }catch(e){console.error(e);send(res,500,{error:'Server error'})}
 });
-setInterval(()=>{for(const id in rooms){const r=rooms[id];if(r.pv){const now=Date.now();for(const c of r.cl.values())if(c.dead&&now>=c.rt){c.dead=0;c.hp=r.pv.hp;c.own=[...r.pv.startW];c.cw=c.own.length?c.own[0]:-1;c.inv=now+2000;r.dirty=1}}if(!r.dirty)continue;r.dirty=0;const m='data: '+JSON.stringify({peers:[...r.cl].map(([peer,c])=>({peer,name:c.name,presence:c.presence||{},...(r.pv?{hp:c.hp,mx:r.pv.hp,k:c.k,d:c.d,w:c.cw,own:c.own,dead:c.dead}:{})}))})+'\n\n';for(const c of r.cl.values())c.res.write(m)}},100);
+setInterval(()=>{for(const id in rooms){const r=rooms[id];if(r.pv){const now=Date.now();for(const c of r.cl.values()){if(c.rl&&now>=c.rl){const w=r.pv.wd[c.rw];if(w)c.am[c.rw]=w.mag;c.rl=0;r.dirty=1}if(c.dead&&now>=c.rt){c.dead=0;c.hp=r.pv.hp;c.own=[...r.pv.startW];c.cw=c.own.length?c.own[0]:-1;c.am={};c.rl=0;c.inv=now+2000;r.dirty=1}}}if(!r.dirty)continue;r.dirty=0;const m='data: '+JSON.stringify({peers:[...r.cl].map(([peer,c])=>({peer,name:c.name,presence:c.presence||{},...(r.pv?{hp:c.hp,mx:r.pv.hp,k:c.k,d:c.d,w:c.cw,own:c.own,dead:c.dead,am:ammoOf(r,c),rl:c.rl>0?1:0}:{})}))})+'\n\n';for(const c of r.cl.values())c.res.write(m)}},100);
 setInterval(()=>{for(const r of Object.values(rooms))for(const c of r.cl.values())c.res.write(': ping\n\n')},15000);
 
 (async()=>{

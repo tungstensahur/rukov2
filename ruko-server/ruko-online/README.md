@@ -36,3 +36,8 @@ and spawn points, and turn on PVP. PVP damage only happens on servers (the Serve
 Pressing Play on a game now puts you in the first server that has room (Server 1 until it holds 10 players, then Server 2, and so on).
 "Practice solo" on each card starts a solo run. The Games tab has search (name, creator, genre, description), sorting
 (most players now, most played, newest, A to Z), genre filters and a PVP-only filter. The Servers tab has its own search.
+
+## Weapon editor 2.0 and admin console
+Weapons: visual weapon cards with a 3D preview and a stats readout (hits to eliminate, fastest kill, DPS), magazine size and reload time,
+hold-to-fire or click-per-shot, eight weapon looks, duplicate, up to three starting weapons, and weapon pickups labelled on the map.
+Admin tab: one search box across players, items and games, with Review / Players / Items / Games / Tools tabs, filters, sorting and paging.
