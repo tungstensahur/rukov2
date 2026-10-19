@@ -46,11 +46,15 @@ const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
+const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};
+// Game visits: when someone joins a server of a game, its creator earns 10 Rukos (once per visitor per game every 10 minutes, never for your own visits).
+const vcool=new Map();
+const payVisit=(id,me)=>{const gid=id.slice(3).replace(/x\d+$/,''),g=D.games.find(x=>x.id==gid),cname=g?g.creator:(['g1','g2','g3'].includes(gid)?'Ruko':null);if(!cname)return;const cu=D.users[cname.toLowerCase()];if(!cu||cu.name===me.name)return;const key=me.name+'|'+gid,now=Date.now();if(now-(vcool.get(key)||0)<600000)return;vcool.set(key,now);cu.coins+=10;cu.ernVisits=(cu.ernVisits||0)+10;save()};
 const staff=u=>!!u&&!!(u.admin||u.mod);
 const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
-const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
+const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,ernSales:u.ernSales||0,ernVisits:u.ernVisits||0,log:(u.log||[]).slice(-10),bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
 const clamp=(v,a,b,d)=>Math.max(a,Math.min(b,Number.isFinite(+v)?+v:d));
 const col=c=>/^#[0-9a-fA-F]{6}$/.test(c)?c:'#888888';
@@ -196,14 +200,14 @@ const server=http.createServer(async(req,res)=>{
   if(me.owned.includes(id))return send(res,400,{error:'You already own this.'});
   if(me.coins<price)return send(res,400,{error:'Not enough Rukos.'});
   me.coins-=price;me.owned.push(id);D.sales[id]=(D.sales[id]||0)+1;
-  if(h){const c=D.users[h.creator.toLowerCase()];if(c&&c!==me)c.coins+=price}
+  {const c=D.users[(h?h.creator:'Ruko').toLowerCase()],cut=Math.floor(price*0.5);if(c&&c!==me&&cut>0){c.coins+=cut;c.ernSales=(c.ernSales||0)+cut;(c.log=c.log||[]).push({t:Date.now(),n:cut,w:h?h.name:(DEFNAME[id]||id),by:me.name});if(c.log.length>30)c.log.shift()}}
   save();return send(res,200,{me:pubUser(me)});
  }
  if(p=='/api/earn'){
   if(!me)return need();
   const now=Date.now(),n=clamp(b.n,0,150,0)|0;me.earn=(me.earn||[]).filter(e=>e[0]>now-600000);
   const g=Math.max(0,Math.min(n,400-me.earn.reduce((a,e)=>a+e[1],0)));
-  if(g){me.earn.push([now,g]);me.coins+=g;save()}return send(res,200,{me:pubUser(me)});
+  if(g){/* coins collected inside games no longer count toward the account balance */}return send(res,200,{me:pubUser(me)});
  }
  if(p=='/api/admin/item'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
@@ -254,7 +258,7 @@ const server=http.createServer(async(req,res)=>{
   const id=decodeURIComponent(p.split('/')[3]||'');if(!/^srv\w{1,40}$/.test(id))return send(res,400,{error:'Bad room'});
   if(p.endsWith('/stream')){
    const r=room(id);if(roomLoad(id,me.name,Date.now())>=10)return send(res,409,{error:'Server full'});
-   const peer=rnd(6);if(resv.get(id))resv.get(id).delete(me.name);res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'});
+   const peer=rnd(6);if(resv.get(id))resv.get(id).delete(me.name);payVisit(id,me);res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'});
    res.write('retry: 3000\n\n');r.cl.set(peer,{res,name:me.name,presence:null,hp:r.pv?r.pv.hp:0,k:0,d:0,own:r.pv?[...r.pv.startW]:[],cw:r.pv&&r.pv.startW.length?r.pv.startW[0]:-1,dead:0,inv:Date.now()+2000,lf:0,rt:0,am:{},rl:0,rw:-1});res.write('data: '+JSON.stringify({hello:peer})+'\n\n');r.dirty=1;
    req.on('close',()=>{r.cl.delete(peer);r.dirty=1;if(!r.cl.size&&rooms[id]===r)delete rooms[id]});return;
   }

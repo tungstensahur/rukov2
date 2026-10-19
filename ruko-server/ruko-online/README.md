@@ -48,3 +48,9 @@ rename items and games, remove game thumbnails and take items on or off sale. On
 promote staff, mark items Special and download backups. Special items get a gold border and badge and a "Special items" row in the catalog.
 Off-sale items disappear from the catalog for everyone who does not own them (staff still see them) and cannot be bought, but nothing is deleted.
 The six built-in hats can be made Special, re-priced or taken off sale too.
+
+## Economy
+Coins collected or won inside games are only a score for that run and are no longer added to your Rukos balance.
+Creators earn 50% of the price (rounded down) every time someone else buys their item, and 10 Rukos per visit to their game
+(a visit is joining a server; the same player only pays out once per game every 10 minutes, and your own visits never pay).
+The built-in Ruko hats and games pay the Ruko account. Earnings show in Creator Studio > My creations.
