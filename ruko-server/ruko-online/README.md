@@ -41,3 +41,10 @@ Pressing Play on a game now puts you in the first server that has room (Server 1
 Weapons: visual weapon cards with a 3D preview and a stats readout (hits to eliminate, fastest kill, DPS), magazine size and reload time,
 hold-to-fire or click-per-shot, eight weapon looks, duplicate, up to three starting weapons, and weapon pickups labelled on the map.
 Admin tab: one search box across players, items and games, with Review / Players / Items / Games / Tools tabs, filters, sorting and paging.
+
+## Staff, Special items and sale status
+The Ruko (owner) account can make a player staff from Admin > Players > Make staff. Staff can mute players, delete chat messages, review shirts,
+rename items and games, remove game thumbnails and take items on or off sale. Only the owner can give Rukos or items, ban, delete, set prices,
+promote staff, mark items Special and download backups. Special items get a gold border and badge and a "Special items" row in the catalog.
+Off-sale items disappear from the catalog for everyone who does not own them (staff still see them) and cannot be bought, but nothing is deleted.
+The six built-in hats can be made Special, re-priced or taken off sale too.

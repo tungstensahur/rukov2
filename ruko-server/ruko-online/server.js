@@ -2,7 +2,7 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
-let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{}};
+let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{}};
 // Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
 // database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
 const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
@@ -16,11 +16,12 @@ const views={
  sales:()=>Object.entries(D.sales).map(([k,v])=>[k,String(v)]),
  likes:()=>Object.entries(D.likes).map(([k,v])=>[k,JSON.stringify(v)]),
  shirtimgs:()=>Object.entries(D.shirtImg),
- plays:()=>Object.entries(D.plays).map(([k,v])=>[k,String(v)])};
+ plays:()=>Object.entries(D.plays).map(([k,v])=>[k,String(v)]),
+ meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)])};
 const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
 const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
 async function loadRedis(){
- const[u,s,h,g,t,sa,l,si,pl]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays'].map(hall));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
+ const[u,s,h,g,t,sa,l,si,pl,mt]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
  D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
  D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
  D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
@@ -45,9 +46,11 @@ const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
+const staff=u=>!!u&&!!(u.admin||u.mod);
+const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
-const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,bio:u.bio||'',joined:u.joined||0,pend:u.admin?D.hats.filter(h=>h.status==='pending').length:undefined});
+const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
 const clamp=(v,a,b,d)=>Math.max(a,Math.min(b,Number.isFinite(+v)?+v:d));
 const col=c=>/^#[0-9a-fA-F]{6}$/.test(c)?c:'#888888';
@@ -88,7 +91,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p=='/api/me'){if(!me)return need();if(req.method=='POST'){if(b.av){const a=av(b.av);if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;me.av=a}if(typeof b.bio=='string')me.bio=b.bio.replace(/\s+/g,' ').trim().slice(0,160);if(b.worn===null||me.owned.includes(b.worn))me.worn=b.worn;save()}return send(res,200,{me:pubUser(me)})}
  if(p=='/api/hats'){
-  if(req.method=='GET'){const lk={};for(const id in D.likes)lk[id]=D.likes[id].length;return send(res,200,{hats:D.hats.filter(h=>h.status!=='pending'&&h.status!=='rejected'),mine:me?D.hats.filter(h=>h.creator===me.name&&(h.status==='pending'||h.status==='rejected')):[],sales:D.sales,likes:lk,liked:me?Object.keys(D.likes).filter(id=>D.likes[id].includes(me.name)):[]})}
+  if(req.method=='GET'){const lk={};for(const id in D.likes)lk[id]=D.likes[id].length;return send(res,200,{hats:D.hats.filter(h=>h.status!=='pending'&&h.status!=='rejected'),mine:me?D.hats.filter(h=>h.creator===me.name&&(h.status==='pending'||h.status==='rejected')):[],sales:D.sales,meta:D.meta,likes:lk,liked:me?Object.keys(D.likes).filter(id=>D.likes[id].includes(me.name)):[]})}
   if(!me)return need();
   if(D.hats.filter(h=>h.creator==me.name).length>=50)return send(res,400,{error:'Hat limit reached (50).'});
   const parts=(Array.isArray(b.parts)?b.parts:[]).slice(0,16).map(q=>({t:['cylinder','cone','dome','sphere','box','torus','pyramid','prism','octa','ico'].includes(q.t)?q.t:'box',c:col(q.c),f:['matte','shiny','metal','glass','neon'].includes(q.f)?q.f:'matte',sx:clamp(q.sx,.05,3,.5),sy:clamp(q.sy,.05,3,.5),sz:clamp(q.sz,.05,3,.5),x:clamp(q.x,-1.6,1.6,0),y:clamp(q.y,-1.5,2.5,0),z:clamp(q.z,-1.6,1.6,0),r:clamp(q.r,-90,90,0),q:clamp(q.q,-90,90,0),ry:clamp(q.ry,-180,180,0),m:!!q.m}));
@@ -103,7 +106,7 @@ const server=http.createServer(async(req,res)=>{
   if(me.muted)return send(res,403,{error:'You are muted.'});
   const now=Date.now();if(now-(lc.get(me.name)||0)<700)return send(res,429,{error:'Slow down.'});lc.set(me.name,now);
   const text=String(b.text||'').trim().slice(0,200);if(!text)return send(res,400,{error:'Empty message.'});
-  chat.push({id:++cid,name:me.name,text,t:now,admin:!!me.admin});if(chat.length>200)chat.shift();return send(res,200,{ok:1});
+  chat.push({id:++cid,name:me.name,text,t:now,admin:!!me.admin,mod:!!me.mod});if(chat.length>200)chat.shift();return send(res,200,{ok:1});
  }
  if(p=='/api/like'){
   if(!me)return need();
@@ -114,10 +117,10 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();
   const L=b.kind=='hat'?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
   if(L[i].creator!==me.name&&!me.admin)return send(res,403,{error:'That is not yours.'});
-  L.splice(i,1);if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id]}save();return send(res,200,{ok:1});
+  L.splice(i,1);if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}save();return send(res,200,{ok:1});
  }
  if(p=='/api/admin/chatdel'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const i=chat.findIndex(m=>m.id==b.id);if(i>=0)chat.splice(i,1);return send(res,200,{ok:1});
  }
  if(p=='/api/profile'){
@@ -125,12 +128,12 @@ const server=http.createServer(async(req,res)=>{
   const u=D.users[String(new URL(req.url,'http://x').searchParams.get('name')||'').toLowerCase()];
   if(!u||(u.banned&&!me.admin))return send(res,404,{error:'No such player.'});
   let playing=null;for(const id in rooms)for(const c of rooms[id].cl.values())if(c.name===u.name)playing=id.slice(3);
-  return send(res,200,{p:{name:u.name,admin:!!u.admin,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
+  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
  }
  if(p=='/api/players'){
   if(!me)return need();
   const q=String(new URL(req.url,'http://x').searchParams.get('q')||'').toLowerCase();
-  return send(res,200,{players:Object.values(D.users).filter(u=>!u.banned&&(!q||u.name.toLowerCase().includes(q))).map(u=>({name:u.name,admin:!!u.admin,online:(seen.get(u.name)||0)>Date.now()-120000})).sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name)).slice(0,30)});
+  return send(res,200,{players:Object.values(D.users).filter(u=>!u.banned&&(!q||u.name.toLowerCase().includes(q))).map(u=>({name:u.name,admin:!!u.admin,mod:!!u.mod,online:(seen.get(u.name)||0)>Date.now()-120000})).sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name)).slice(0,30)});
  }
  if(p=='/api/admin/export'){
   if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
@@ -153,15 +156,15 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(200,{'content-type':m[1],'cache-control':h.status==='approved'?'public, max-age=86400':'private, no-store'});return res.end(Buffer.from(m[2],'base64'));
  }
  if(p=='/api/admin/all'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
-  return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length]))});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
+  return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length])),meta:D.meta});
  }
  if(p=='/api/admin/pending'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   return send(res,200,{items:D.hats.filter(h=>h.status==='pending')});
  }
  if(p=='/api/admin/review'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const h=D.hats.find(x=>x.id==b.id&&x.kind=='shirt');if(!h)return send(res,404,{error:'Not found.'});
   h.status=b.approve?'approved':'rejected';h.at=Date.now();if(!b.approve)h.note=String(b.note||'').slice(0,80);save();return send(res,200,{ok:1});
  }
@@ -187,8 +190,9 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p=='/api/buy'){
   if(!me)return need();
-  const id=String(b.id),h=D.hats.find(x=>x.id==id),price=h?h.price:PRICE[id];
+  const id=String(b.id),h=D.hats.find(x=>x.id==id),price=priceOf(id,h);
   if(price==null||(h&&h.status&&h.status!=='approved'))return send(res,404,{error:'No such hat.'});
+  if(D.meta[id]&&D.meta[id].off)return send(res,400,{error:'This item is off sale.'});
   if(me.owned.includes(id))return send(res,400,{error:'You already own this.'});
   if(me.coins<price)return send(res,400,{error:'Not enough Rukos.'});
   me.coins-=price;me.owned.push(id);D.sales[id]=(D.sales[id]||0)+1;
@@ -201,25 +205,40 @@ const server=http.createServer(async(req,res)=>{
   const g=Math.max(0,Math.min(n,400-me.earn.reduce((a,e)=>a+e[1],0)));
   if(g){me.earn.push([now,g]);me.coins+=g;save()}return send(res,200,{me:pubUser(me)});
  }
+ if(p=='/api/admin/item'){
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
+  const id=String(b.id),h=D.hats.find(x=>x.id==id);if(!h&&!(id in PRICE))return send(res,404,{error:'No such item.'});
+  if((b.special!=null||b.price!=null)&&!me.admin)return send(res,403,{error:'Only the owner can change Special or price.'});
+  const m=D.meta[id]=D.meta[id]||{};
+  if(b.off!=null)m.off=!!b.off;
+  if(b.special!=null)m.special=!!b.special;
+  if(b.price!=null){const pr=clamp(b.price,0,100000,0)|0;if(pr==(h?h.price:PRICE[id]))delete m.price;else m.price=pr}
+  if(b.name!=null&&h&&String(b.name).trim())h.name=String(b.name).trim().slice(0,20);
+  if(!m.off&&!m.special&&m.price==null)delete D.meta[id];
+  save();return send(res,200,{ok:1});
+ }
  if(p=='/api/admin/hat'||p=='/api/admin/game'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const hat=p.endsWith('hat'),L=hat?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
-  if(b.action=='delete'){L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id]}}
-  else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat)x.price=clamp(b.price,0,1000,x.price)|0;else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80);if(!hat&&b.dropThumb){delete x.thumb;x.tv=0}}
+  if(b.action=='delete'){if(!me.admin)return send(res,403,{error:'Only the owner can delete.'});L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}}
+  else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat){if(me.admin)x.price=clamp(b.price,0,1000,x.price)|0}else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80);if(!hat&&b.dropThumb){delete x.thumb;x.tv=0}}
   save();return send(res,200,{ok:1});
  }
  if(p=='/api/admin/users'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
-  return send(res,200,{users:Object.values(D.users).map(u=>({name:u.name,coins:u.coins,owned:u.owned.length,banned:!!u.banned,muted:!!u.muted,admin:!!u.admin,joined:u.joined||0,online:(seen.get(u.name)||0)>Date.now()-120000}))});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
+  return send(res,200,{users:Object.values(D.users).map(u=>({name:u.name,coins:u.coins,owned:u.owned.length,banned:!!u.banned,muted:!!u.muted,admin:!!u.admin,mod:!!u.mod,joined:u.joined||0,online:(seen.get(u.name)||0)>Date.now()-120000}))});
  }
  if(p=='/api/admin/grant'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
+  const OWN=!!me.admin;
+  if((b.all||b.coins!=null||b.hat||b.ban!=null||b.mod!=null)&&!OWN)return send(res,403,{error:'Only the owner can do that.'});
   if(b.all){const n=clamp(b.coins,-1e6,1e6,0)|0;for(const u of Object.values(D.users))u.coins=Math.max(0,u.coins+n);save();return send(res,200,{ok:1})}
   const u=D.users[String(b.user||'').toLowerCase()];if(!u)return send(res,404,{error:'No such player.'});
   if(b.coins!=null)u.coins=Math.max(0,u.coins+(clamp(b.coins,-1e6,1e6,0)|0));
   if(b.hat){const id=String(b.hat);if(!(id in PRICE)&&!D.hats.some(h=>h.id==id))return send(res,404,{error:'No such item.'});const i=u.owned.indexOf(id);if(b.take){if(i>=0)u.owned.splice(i,1);if(u.worn==id)u.worn=null}else if(i<0)u.owned.push(id)}
   if(b.ban!=null&&!u.admin)u.banned=!!b.ban;
-  if(b.mute!=null&&!u.admin)u.muted=!!b.mute;
+  if(b.mute!=null&&!u.admin&&(OWN||!u.mod))u.muted=!!b.mute;
+  if(b.mod!=null&&!u.admin)u.mod=!!b.mod;
   save();return send(res,200,{ok:1});
  }
  if(p=='/api/servers/assign'){
