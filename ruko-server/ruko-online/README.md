@@ -60,3 +60,7 @@ The built-in Ruko hats and games pay the Ruko account. Earnings show in Creator 
 tabs (Shape, Move, Size, Turn, Paint, More) with big minus/plus buttons that repeat when held, 15 shapes (new: star, heart, cross, hexagon, spike),
 a color palette, finishes and see-through, mirroring, "copies in a circle" for crowns and spikes, 12 templates, drag-to-spin preview,
 undo/redo, up to 24 parts, and an automatic draft so you do not lose work.
+
+## Refresh on open
+Pages no longer update on a timer. Sales, visits, balances, likes and active servers refresh when you open a page (including after leaving a game),
+and the Games, Catalog and Servers pages have a ↻ Refresh button. Only the Chat page keeps updating live.
