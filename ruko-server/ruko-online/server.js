@@ -53,6 +53,7 @@ const payVisit=(id,me)=>{const gid=id.slice(3).replace(/x\d+$/,''),g=D.games.fin
 const staff=u=>!!u&&!!(u.admin||u.mod);
 const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
+function rayBox3(ox,oy,oz,dx,dz,sl,b){let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}if(t0<=0)return null;const h0=oy+sl*t0,h1=oy+sl*t1,lo=Math.min(h0,h1),hi=Math.max(h0,h1);return hi<b.y0||lo>b.y1?null:t0}
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
 const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,ernSales:u.ernSales||0,ernVisits:u.ernVisits||0,log:(u.log||[]).slice(-10),bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
@@ -176,10 +177,10 @@ const server=http.createServer(async(req,res)=>{
  if(p=='/api/games'){
   if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0})),plays:D.plays});
   if(!me)return need();
-  const objs=Array.isArray(b.objs)?b.objs.slice(0,150).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-60,60,0),y:clamp(o.y,-5,60,0),z:clamp(o.z,-60,60,0)};
-   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,80,3);r.sz=clamp(o.sz,.5,80,3);r.th=clamp(o.th,.25,20,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
+  const objs=Array.isArray(b.objs)?b.objs.slice(0,300).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-200,200,0),y:clamp(o.y,-20,200,0),z:clamp(o.z,-200,200,0)};
+   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,200,3);r.sz=clamp(o.sz,.5,200,3);r.th=clamp(o.th,.25,40,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
    if(k=='d'){r.shape=['box','sphere','cone','cylinder','pyramid','prism'].includes(o.shape)?o.shape:'box';r.sx=clamp(o.sx,.1,40,2);r.sy=clamp(o.sy,.1,40,2);r.sz=clamp(o.sz,.1,40,2);r.c=col(o.c)}
-   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;return r}).filter(Boolean):null;
+   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;if(typeof o.nm=='string'&&o.nm)r.nm=o.nm.slice(0,16);return r}).filter(Boolean):null;
   if(objs&&!objs.some(o=>o.k=='p'))return send(res,400,{error:'Add at least one platform.'});
   let th=null;if(typeof b.thumb=='string'){if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(b.thumb)||b.thumb.length>90000)return send(res,400,{error:'Thumbnail must be a small image.'});th=b.thumb}
   const ex=b.update?D.games.find(g=>g.id==b.id):null;
@@ -272,16 +273,16 @@ const server=http.createServer(async(req,res)=>{
    if(c.rl&&now<c.rl)return send(res,200,{ok:0});
    if(now-c.lf<wd.cd*1000-120)return send(res,200,{ok:0});c.lf=now;
    if(wd.mag>0){const cur=c.am[c.cw]!=null?c.am[c.cw]:wd.mag;if(cur<=0){c.rl=now+wd.rel*1000;c.rw=c.cw;r.dirty=1;return send(res,200,{ok:0})}c.am[c.cw]=cur-1;if(cur-1<=0){c.rl=now+wd.rel*1000;c.rw=c.cw}r.dirty=1}
-   let dx=+b.dx||0,dz=+b.dz||0;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
+   let dx=+b.dx||0,dz=+b.dz||0;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;const sl0=Math.max(-3,Math.min(3,+b.s||0));
    const oy=ps.y+1.6,dmg=new Map(),fx=[],targets=[...r.cl].filter(([k,v])=>v!==c&&!v.dead&&v.presence&&v.inv<=now);
    if(wd.t=='melee'){
     for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,dist=Math.hypot(vx,vz);if(dist<=wd.rng&&(dist<.4||(vx*dx+vz*dz)/dist>.25)&&Math.abs(v.presence.y-ps.y)<3)dmg.set(k,(dmg.get(k)||0)+wd.dmg)}
    }else for(let n=0;n<wd.pel;n++){
-    let ax=dx,az=dz;if(wd.spr){const a=(Math.random()-.5)*wd.spr*Math.PI/180;ax=dx*Math.cos(a)-dz*Math.sin(a);az=dx*Math.sin(a)+dz*Math.cos(a)}
-    let bt=wd.rng;for(const o of pv.occ){const t=rayBox(ps.x,oy,ps.z,ax,az,o);if(t!=null&&t<bt)bt=t}
-    let best=null;for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,t=vx*ax+vz*az;if(t>0&&t<bt&&Math.abs(vx*az-vz*ax)<.9&&oy>=v.presence.y-.3&&oy<=v.presence.y+3.5){best=k;bt=t}}
+    let ax=dx,az=dz,sl=sl0;if(wd.spr){sl+=(Math.random()-.5)*wd.spr*Math.PI/180;const a=(Math.random()-.5)*wd.spr*Math.PI/180;ax=dx*Math.cos(a)-dz*Math.sin(a);az=dx*Math.sin(a)+dz*Math.cos(a)}
+    let bt=wd.rng;for(const o of pv.occ){const t=rayBox3(ps.x,oy,ps.z,ax,az,sl,o);if(t!=null&&t<bt)bt=t}
+    let best=null;for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,t=vx*ax+vz*az;if(t>0&&t<bt&&Math.abs(vx*az-vz*ax)<.9&&(oy+sl*t)>=v.presence.y-.3&&(oy+sl*t)<=v.presence.y+3.5){best=k;bt=t}}
     if(best)dmg.set(best,(dmg.get(best)||0)+wd.dmg);
-    fx.push({f:[+ps.x.toFixed(1),+oy.toFixed(1),+ps.z.toFixed(1)],t:[+(ps.x+ax*bt).toFixed(1),+oy.toFixed(1),+(ps.z+az*bt).toFixed(1)]});
+    fx.push({f:[+ps.x.toFixed(1),+oy.toFixed(1),+ps.z.toFixed(1)],t:[+(ps.x+ax*bt).toFixed(1),+(oy+sl*bt).toFixed(1),+(ps.z+az*bt).toFixed(1)]});
    }
    if(fx.length)bc(r,{t:'fx',peer:String(b.peer),w:fx});
    for(const[k,d]of dmg){const v=r.cl.get(k);v.hp-=d;bc(r,{t:'hit',target:k,by:String(b.peer)});
