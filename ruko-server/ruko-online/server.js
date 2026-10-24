@@ -45,6 +45,15 @@ process.on('SIGTERM',async()=>{dirty=1;busy=0;try{await flush()}catch(e){}proces
 const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
+// The built-in games are ordinary games owned by Ruko (so the owner can edit or delete them). They are created once, and stay deleted if the owner deletes them.
+const hsl2hex=(h,s,l)=>{h/=360;s/=100;l/=100;const f=n=>{const k=(n+h*12)%12,a=s*Math.min(l,1-l);return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1))))};return '#'+[f(0),f(8),f(4)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+const BUILTIN=[{id:'g1',name:'Sky Steps',desc:'Jump up the floating obby to the golden platform.',mode:'obby',sky:'#8fd3ff',ground:'#5bd16a',seed:7,size:18,genre:'Obby'},{id:'g2',name:'Coin Rush',desc:'Grab every coin in the park.',mode:'coins',sky:'#ffd9a0',ground:'#7bc96f',seed:3,size:20,genre:'Adventure'},{id:'g3',name:'Ruko Park',desc:'Free roam. Show off your hats.',mode:'roam',sky:'#b7e3ff',ground:'#9fd3a0',seed:11,size:12,genre:'Chill'}];
+function builtinObjs(g){let sd=(+g.seed||1)%2147483646+1;const r=()=>(sd=(sd*16807)%2147483647)/2147483647,o=[{k:'s',x:0,y:0,z:0}],P=(x,y,z,sx,sz,c,t)=>o.push({k:'p',t:t||'solid',x:+x.toFixed(2),y:+y.toFixed(2),z:+z.toFixed(2),sx,sz,th:.5,c});
+ if(g.mode=='obby'){P(0,0,0,6,6,g.ground);let x=0,y=0,z=0;const n=Math.max(5,Math.min(40,g.size));for(let i=0;i<n;i++){x+=(r()-.5)*6;y+=.3+r()*.9;z-=4.5+r()*1.5;P(x,y,z,3,3,i==n-1?'#ffd23f':hsl2hex(i*37%360,70,60),i==n-1?'goal':'solid')}}
+ else{P(0,0,0,60,60,g.ground);for(let i=0;i<(g.mode=='roam'?12:6);i++){const x=(r()-.5)*40,y=.8+r()*2,z=(r()-.5)*40;P(x,y,z,3,3,hsl2hex(r()*360,60,60))}
+  if(g.mode=='coins')for(let i=0;i<25;i++)o.push({k:'c',x:+((r()-.5)*40).toFixed(2),y:+(.9+r()*1.4).toFixed(2),z:+((r()-.5)*40).toFixed(2)})}
+ return o}
+function seedBuiltins(){const rm=D.meta.__removed||{};let n=0;for(const b of BUILTIN){if(rm[b.id]||D.games.some(g=>g.id==b.id))continue;D.games.push({id:b.id,creator:'Ruko',name:b.name,desc:b.desc,genre:b.genre,mode:'custom',sky:b.sky,ground:b.ground,size:16,seed:1,spd:7,jmp:9,grav:22,coinN:25,cps:false,pvp:false,hp:100,resp:3,weapons:[],startW:[],light:1,fog:true,killY:-15,objs:builtinObjs(b),tv:0,at:0});n++}if(n)save();return n}
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
 const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};
 // Game visits: when someone joins a server of a game, its creator earns 10 Rukos (once per visitor per game every 10 minutes, never for your own visits).
@@ -122,7 +131,7 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();
   const L=b.kind=='hat'?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
   if(L[i].creator!==me.name&&!me.admin)return send(res,403,{error:'That is not yours.'});
-  L.splice(i,1);if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}save();return send(res,200,{ok:1});
+  L.splice(i,1);if(b.kind!='hat'&&BUILTIN.some(x=>x.id==b.id))(D.meta.__removed=D.meta.__removed||{})[b.id]=1;if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}save();return send(res,200,{ok:1});
  }
  if(p=='/api/admin/chatdel'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
@@ -210,6 +219,10 @@ const server=http.createServer(async(req,res)=>{
   const g=Math.max(0,Math.min(n,400-me.earn.reduce((a,e)=>a+e[1],0)));
   if(g){/* coins collected inside games no longer count toward the account balance */}return send(res,200,{me:pubUser(me)});
  }
+ if(p=='/api/admin/restore'){
+  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
+  delete D.meta.__removed;const n=seedBuiltins();save();return send(res,200,{ok:1,restored:n});
+ }
  if(p=='/api/admin/item'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const id=String(b.id),h=D.hats.find(x=>x.id==id);if(!h&&!(id in PRICE))return send(res,404,{error:'No such item.'});
@@ -225,7 +238,7 @@ const server=http.createServer(async(req,res)=>{
  if(p=='/api/admin/hat'||p=='/api/admin/game'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const hat=p.endsWith('hat'),L=hat?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
-  if(b.action=='delete'){if(!me.admin)return send(res,403,{error:'Only the owner can delete.'});L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}}
+  if(b.action=='delete'){if(!me.admin)return send(res,403,{error:'Only the owner can delete.'});L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}if(!hat&&BUILTIN.some(x=>x.id==b.id))(D.meta.__removed=D.meta.__removed||{})[b.id]=1}
   else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat){if(me.admin)x.price=clamp(b.price,0,1000,x.price)|0}else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80);if(!hat&&b.dropThumb){delete x.thumb;x.tv=0}}
   save();return send(res,200,{ok:1});
  }
@@ -315,5 +328,5 @@ setInterval(()=>{for(const r of Object.values(rooms))for(const c of r.cl.values(
   if(!had&&fileData){Object.assign(D,fileData);D.likes=D.likes||{};dirty=1;console.log('Redis was empty: copying the local data file into it.')}
   else console.log(had?'Loaded all data from Redis.':'Redis is empty: starting fresh.');
  }else{if(fileData)Object.assign(D,fileData);console.log('No Redis configured: saving to a local file (lost if the host resets its disk).')}
- seedAdmin();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
+ seedAdmin();seedBuiltins();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
 })();

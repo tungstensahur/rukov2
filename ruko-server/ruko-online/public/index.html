@@ -93,7 +93,7 @@ const DEF_GAMES=[
 {id:'g1',name:'Sky Steps',creator:'Ruko',desc:'Jump up the floating obby to the golden platform.',mode:'obby',sky:'#8fd3ff',ground:'#5bd16a',seed:7,size:18},
 {id:'g2',name:'Coin Rush',creator:'Ruko',desc:'Grab every coin in the park.',mode:'coins',sky:'#ffd9a0',ground:'#7bc96f',seed:3,size:20},
 {id:'g3',name:'Ruko Park',creator:'Ruko',desc:'Free roam. Show off your hats.',mode:'roam',sky:'#b7e3ff',ground:'#9fd3a0',seed:11,size:12}];
-const hats=()=>[...DEF_HATS,...SH].map(h=>MET[h.id]?{...h,...MET[h.id]}:h),games=()=>[...DEF_GAMES,...SG];
+const hats=()=>[...DEF_HATS,...SH].map(h=>MET[h.id]?{...h,...MET[h.id]}:h),games=()=>[...DEF_GAMES.filter(d=>!SG.some(g=>g.id==d.id)),...SG];
 let ME=null,TOKEN=ls.get('ruko_token',null);const key=()=>ME?ME.name.toLowerCase():null,cur=()=>ME,users=()=>ME?{[key()]:ME}:{};
 const saveUser=u=>{if(ME&&u!==ME){ME.av=u.av;ME.worn=u.worn}api('/api/me',{av:u.av||undefined,worn:u.worn||null})};
 const sales=h=>(h.base||0)+(SC[h.id]||0);
@@ -164,7 +164,7 @@ function PVT(t,dt){if(!pvp)return;pkm.forEach(m=>m.rotation.y+=dt*2);
  for(let n=1;n<=6;n++)if(keys[''+n]){swTo(ST.owned[n-1]);keys[''+n]=0}
  if(TK.te){TK.te=0;swTo(ST.owned[(ST.owned.indexOf(ST.cw)+1)%Math.max(1,ST.owned.length)])}}
 if(pvp){if(ST.cw>=0){setW(pm,ST.cw);ST.am=(WD[ST.cw]||{}).mag||0}hud()}
-const cam3={x:p.x,y:p.y,z:p.z};let vhx=0,vhz=0,gr=false,coy=0,jbuf=0,jprev=false,jumping=false;
+const cam3={x:p.x,y:p.y,z:p.z};let gait=0,lsw=0,lup=0,vhx=0,vhz=0,gr=false,coy=0,jbuf=0,jprev=false,jumping=false;
 const rsp=()=>{p.x=sp0.x;p.z=sp0.z;p.y=sp0.y+1;p.vy=0;vhx=0;vhz=0;cam3.x=p.x;cam3.y=p.y;cam3.z=p.z};
 function camPose(){const dh=cd*Math.cos(cp),dv=cd*Math.sin(cp),off=pvp?.9:0,ox=Math.cos(cy)*off,oz=-Math.sin(cy)*off,cx=cam3.x+Math.sin(cy)*dh+ox,cz=cam3.z+Math.cos(cy)*dh+oz;let y=cam3.y+1.6+dv,gm=cam3.y+.4;for(const q of pl)if(!q.off&&q.y<=cam3.y+3&&Math.abs(cx-q.x)<=q.sx/2&&Math.abs(cz-q.z)<=q.sz/2&&q.y+.4>gm)gm=q.y+.4;if(y<gm)y=gm;return{x:cx,y,z:cz,fx:-Math.sin(cy)*Math.cos(cp),fy:-Math.sin(cp),fz:-Math.cos(cy)*Math.cos(cp)}}
 function aim(){const P=camPose(),ax=P.x+P.fx*45-p.x,ay=P.y+P.fy*45-(p.y+1.6),az=P.z+P.fz*45-p.z,h=Math.hypot(ax,az)||1;return{dx:ax/h,dz:az/h,s:Math.max(-2.5,Math.min(2.5,ay/h))}}
@@ -184,7 +184,7 @@ const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000
   if(p.y<(g.killY||-15))rsp();
   coins.forEach(c=>{if(!c.visible)return;c.rotation.z+=dt*3;if(Math.hypot(c.position.x-p.x,c.position.y-p.y-1.3,c.position.z-p.z)<1.8){c.visible=false;got+=5}});
   $('#gh').textContent='⏱ '+((t-ts)/1000|0)+'s   Coins: '+got;
-  PVT(t,dt);const Lb=pm.userData.l,sa=Math.min(1,hs/(sp*.9))*.9,sw=on&&hs>.3?Math.sin(t*.0017*hs)*sa:0;Lb.ll.rotation.x=sw;Lb.rl.rotation.x=-sw;Lb.la.rotation.x=on?-sw:-2.6;Lb.ra.rotation.x=t-atk<220?-1.5:(on?sw:-2.6);pm.position.set(p.x,p.y,p.z);
+  PVT(t,dt);gait+=dt*hs*1.15;const Lb=pm.userData.l,sa=Math.min(1,hs/(sp*.9))*.75,tg=on&&hs>.3?Math.sin(gait)*sa:0,kq=Math.min(1,16*dt);lsw+=(tg-lsw)*kq;lup+=((on?0:1)-lup)*kq;Lb.ll.rotation.x=lsw;Lb.rl.rotation.x=-lsw;Lb.la.rotation.x=-lsw*(1-lup)-2.4*lup;Lb.ra.rotation.x=t-atk<220?-1.5:(lsw*(1-lup)-2.4*lup);pm.position.set(p.x,p.y,p.z);
   const ca=1-Math.exp(-14*dt),cb=1-Math.exp(-9*dt);cam3.x+=(p.x-cam3.x)*ca;cam3.z+=(p.z-cam3.z)*ca;cam3.y+=(p.y-cam3.y)*cb;
   const CP=camPose();C.position.set(CP.x,CP.y,CP.z);C.lookAt(CP.x+CP.fx,CP.y+CP.fy,CP.z+CP.fz);
   if(rr&&t-hb>100){hb=t;rr.presence({x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+pm.rotation.y.toFixed(2),hat:me.worn||null,av:me.av||null}).catch(()=>{})}Object.values(rem).forEach(o=>{const m=o.m;m.position.x+=(o.t.x-m.position.x)*.3;m.position.y+=(o.t.y-m.position.y)*.3;m.position.z+=(o.t.z-m.position.z)*.3;m.rotation.y=o.t.r});R.render(S,C)};
@@ -693,6 +693,7 @@ function adminBody(){const B=$('#ab'),D=AD.data,t=AD.tab,pn=D.hats.filter(h=>h.s
  else B.innerHTML=`<div class="card"><b>Give everyone Rukos</b><div class="arw" style="margin-top:6px"><input id="ga" type="number" placeholder="Amount (negative removes)"><button data-act="all">Give all</button></div></div><div class="card" style="margin-top:8px"><b>Backup</b><p class="mut" style="font-size:13px">Downloads every account, item, game and sale as one file.</p><button data-act="backup">Download full backup</button></div>`}
 async function adminClick(e){const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id,box=b.closest('details')||document,v=s=>{const el=box.querySelector(s);return el?el.value:''};
  if(a=='tab'){AD.tab=b.dataset.tab;AD.pg=0;adminBody();return}
+ if(a=='gedit'){editGame(id);return}
  if(a=='pg'){AD.pg=+b.dataset.pg;adminBody();$('#ab').scrollIntoView();return}
  if(a=='backup'){const r=await api('/api/admin/export');if(!r||r.error)return toast('Backup failed.');const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([JSON.stringify(r)],{type:'application/json'}));l.download='ruko-backup.json';l.click();return}
  let r;
@@ -702,6 +703,7 @@ async function adminClick(e){const b=e.target.closest('[data-act]');if(!b)return
  else if(a=='ban')r=await api('/api/admin/grant',{user:id,ban:+b.dataset.v});
  else if(a=='mute')r=await api('/api/admin/grant',{user:id,mute:+b.dataset.v});
  else if(a=='all')r=await api('/api/admin/grant',{all:1,coins:+$('#ga').value||0});
+ else if(a=='restore')r=await api('/api/admin/restore',{});
  else if(a=='isave')r=await api('/api/admin/hat',{id,action:'edit',name:v('[data-f=name]'),price:+v('[data-f=price]')});
  else if(a=='idel'){if(!confirm('Delete this item for everyone?'))return;r=await api('/api/admin/hat',{id,action:'delete'})}
  else if(a=='approve')r=await api('/api/admin/review',{id,approve:1});
@@ -724,7 +726,7 @@ function rowPlayer(u){const k='p:'+u.name,own=OWNR(),opts=own?[...DEF_HATS,...AD
 function rowItem(h){const k='i:'+h.id,S=AD.data.sales,st=h.status||'approved',own=OWNR();
  return `<details class="arow" data-k="${esc(k)}" ${op(k)}><summary><img src="${imgOf(h)}" alt="" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;border-radius:6px;background:var(--bg)"> <b>${esc(h.name)}</b> ${h.special?'<span class="bd" style="background:#ffc800;color:#000">✨ special</span>':''}${h.off?' <span class="bd bad">off sale</span>':''}${st!='approved'?' <span class="bd bad">'+st+'</span>':''}${h.builtin?' <span class="bd">built-in</span>':''} <span class="mut">${h.builtin?'by Ruko':'by '+esc(h.creator)} · 🪙 ${h.price} · ${(S[h.id]||0)+(h.base||0)} sold · ❤ ${AD.data.likes[h.id]||0}</span></summary><div class="abox"><div class="arw">${h.builtin?'':`<input data-f="name" maxlength="20" value="${esc(h.name)}">`}${own?`<input data-f="price" type="number" min="0" max="100000" value="${h.price}" style="max-width:120px">`:''}</div><div class="arw">${h.builtin&&!own?'':`<button class="pri" data-act="isave" data-id="${h.id}">Save</button>`}${own?`<button data-act="ispecial" data-id="${h.id}" data-v="${h.special?0:1}">${h.special?'★ Remove Special':'☆ Make Special'}</button>`:''}<button data-act="isale" data-id="${h.id}" data-v="${h.off?0:1}">${h.off?'Put on sale':'Take off sale'}</button>${own&&!h.builtin?`<button data-act="idel" data-id="${h.id}">Delete</button>`:''}${h.builtin?'':`<button data-u="${esc(h.creator)}">Creator profile</button>`}${st=='pending'?`<button class="pri" data-act="approve" data-id="${h.id}">Approve</button><button data-act="reject" data-id="${h.id}">Reject</button>`:''}</div></div></details>`}
 function rowGame(g){const k='g:'+g.id,P=AD.data.plays,own=OWNR();
- return `<details class="arow" data-k="${esc(k)}" ${op(k)}><summary><b>${esc(g.name)}</b> <span class="bd">${esc(g.genre||'Obby')}</span>${g.pvp?' <span class="bd">PVP</span>':''} <span class="mut">by ${esc(g.creator)} · ▶ ${P[g.id]||0} plays</span></summary><div class="abox"><div class="arw"><input data-f="name" maxlength="24" value="${esc(g.name)}"></div><div class="arw"><input data-f="desc" maxlength="80" value="${esc(g.desc||'')}"></div><div class="arw"><button class="pri" data-act="gsave" data-id="${g.id}">Save</button>${g.ht?`<button data-act="gthumb" data-id="${g.id}">Remove thumbnail</button>`:''}${own?`<button data-act="gdel" data-id="${g.id}">Delete</button>`:''}<button data-u="${esc(g.creator)}">Creator profile</button></div></div></details>`}
+ return `<details class="arow" data-k="${esc(k)}" ${op(k)}><summary><b>${esc(g.name)}</b> <span class="bd">${esc(g.genre||'Obby')}</span>${g.pvp?' <span class="bd">PVP</span>':''} <span class="mut">by ${esc(g.creator)} · ▶ ${P[g.id]||0} plays</span></summary><div class="abox"><div class="arw"><input data-f="name" maxlength="24" value="${esc(g.name)}"></div><div class="arw"><input data-f="desc" maxlength="80" value="${esc(g.desc||'')}"></div><div class="arw"><button class="pri" data-act="gsave" data-id="${g.id}">Save</button>${g.ht?`<button data-act="gthumb" data-id="${g.id}">Remove thumbnail</button>`:''}${own?`<button data-act="gedit" data-id="${g.id}">Open in Studio</button><button data-act="gdel" data-id="${g.id}">Delete</button>`:''}<button data-u="${esc(g.creator)}">Creator profile</button></div></div></details>`}
 function adminBody(){const B=$('#ab'),D=AD.data,t=AD.tab,pn=D.hats.filter(h=>h.status==='pending');adminTabs();
  if(t=='all'){const q=aq();
   if(!q){const tp=Object.values(D.plays).reduce((a,b)=>a+b,0),ts=Object.values(D.sales).reduce((a,b)=>a+b,0),card=(n,l)=>`<div class="card" style="text-align:center"><b style="font-size:22px">${n}</b><div class="mut" style="font-size:12px">${l}</div></div>`,its=allItems();
@@ -735,9 +737,10 @@ function adminBody(){const B=$('#ab'),D=AD.data,t=AD.tab,pn=D.hats.filter(h=>h.s
  else if(t=='players'){const L=fPlayers2();B.innerHTML=`<div class="arw">${sel('flt','players',[['all','All players'],['online','Online now'],['staff','Staff'],['banned','Banned'],['muted','Muted']])}${sel('srt','players',[['online','Online first'],['name','Name'],['coins','Most Rukos'],['joined','Newest']])}</div>${L.slice(AD.pg*PGS,AD.pg*PGS+PGS).map(rowPlayer).join('')||'<p class="mut">No players match.</p>'}${pager(L.length)}`}
  else if(t=='items'){const L=fItems2();B.innerHTML=`<div class="arw">${sel('flt','items',[['all','Hats and shirts'],['hats','Hats only'],['shirts','Shirts only']])}${sel('flt','isale',[['all','Any sale status'],['special','✨ Special'],['on','On sale'],['off','Off sale']])}${sel('flt','istat',[['all','Any review status'],['approved','Approved'],['pending','Pending'],['rejected','Rejected']])}${sel('srt','items',[['new','Newest'],['sales','Best selling'],['price','Highest price'],['name','Name']])}</div>${L.slice(AD.pg*PGS,AD.pg*PGS+PGS).map(rowItem).join('')||'<p class="mut">No items match.</p>'}${pager(L.length)}`}
  else if(t=='games'){const L=fGames();B.innerHTML=`<div class="arw">${sel('flt','games',[['all','All games'],['pvp','PVP only']])}${sel('srt','games',[['new','Newest'],['plays','Most visited'],['name','Name']])}</div>${L.slice(AD.pg*PGS,AD.pg*PGS+PGS).map(rowGame).join('')||'<p class="mut">No games match.</p>'}${pager(L.length)}`}
- else B.innerHTML=OWNR()?`<div class="card"><b>Give everyone Rukos</b><div class="arw" style="margin-top:6px"><input id="ga" type="number" placeholder="Amount (negative removes)"><button data-act="all">Give all</button></div></div><div class="card" style="margin-top:8px"><b>Backup</b><p class="mut" style="font-size:13px">Downloads every account, item, game and sale as one file.</p><button data-act="backup">Download full backup</button></div>`:'<p class="mut">Only the owner can use these tools.</p>'}
+ else B.innerHTML=OWNR()?`<div class="card"><b>Give everyone Rukos</b><div class="arw" style="margin-top:6px"><input id="ga" type="number" placeholder="Amount (negative removes)"><button data-act="all">Give all</button></div></div><div class="card" style="margin-top:8px"><b>Backup</b><p class="mut" style="font-size:13px">Downloads every account, item, game and sale as one file.</p><button data-act="backup">Download full backup</button></div><div class="card" style="margin-top:8px"><b>Built-in games</b><p class="mut" style="font-size:13px">Sky Steps, Coin Rush and Ruko Park are normal games you can edit or delete from the Games tab. This brings back any you deleted.</p><button data-act="restore">Restore missing built-in games</button></div>`:'<p class="mut">Only the owner can use these tools.</p>'}
 async function adminClick(e){const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id,box=b.closest('details')||document,v=s=>{const el=box.querySelector(s);return el?el.value:''};
  if(a=='tab'){AD.tab=b.dataset.tab;AD.pg=0;adminBody();return}
+ if(a=='gedit'){editGame(id);return}
  if(a=='pg'){AD.pg=+b.dataset.pg;adminBody();$('#ab').scrollIntoView();return}
  if(a=='backup'){const r=await api('/api/admin/export');if(!r||r.error)return toast('Backup failed.');const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([JSON.stringify(r)],{type:'application/json'}));l.download='ruko-backup.json';l.click();return}
  let r;
@@ -748,6 +751,7 @@ async function adminClick(e){const b=e.target.closest('[data-act]');if(!b)return
  else if(a=='mute')r=await api('/api/admin/grant',{user:id,mute:+b.dataset.v});
  else if(a=='mod'){if(+b.dataset.v&&!confirm('Make '+id+' staff? They will be able to mute players, delete chat messages, review shirts, rename items and games, and take items off sale.'))return;r=await api('/api/admin/grant',{user:id,mod:+b.dataset.v})}
  else if(a=='all')r=await api('/api/admin/grant',{all:1,coins:+$('#ga').value||0});
+ else if(a=='restore')r=await api('/api/admin/restore',{});
  else if(a=='isave'){const o={id},nm=v('[data-f=name]');if(nm)o.name=nm;if(OWNR()&&v('[data-f=price]')!=='')o.price=+v('[data-f=price]');r=await api('/api/admin/item',o)}
  else if(a=='ispecial')r=await api('/api/admin/item',{id,special:!!+b.dataset.v});
  else if(a=='isale')r=await api('/api/admin/item',{id,off:!!+b.dataset.v});
@@ -1025,6 +1029,10 @@ function gameEd(me){
  $('#pub').onclick=()=>{if(!O().some(o=>o.k=='p'))return toast('Add at least one platform.');const g=spec();pub('games',g);GE=null;ls.set('ruko_draft',null);location.hash='#/'};
  $('#nw').onclick=()=>{if(confirm('Discard this level and start fresh?')){GE=null;ls.set('ruko_draft',null);create('game')}};
  setTool(GE.tool);setTab(GE.tab||'props');wpanelRender(persist);tmb();rebuild();propsRender();exRender();stat();fit();rs()}
+/* ---------- v15: manage built-in games from the admin panel ---------- */
+function editGame(id){api('/api/game?id='+encodeURIComponent(id)).then(r=>{if(!r||!r.game)return toast('Could not load that game.');const g=SG.find(x=>x.id==id);
+ GE={...r.game,sel:-1,tool:'move',tab:'props',snap:.5,thumb:null,editId:r.game.id,keepThumb:!!(g&&g.ht),startW:r.game.startW||[],weapons:r.game.weapons||[],wsel:0};
+ CTAB='game';if(location.hash!='#/create')location.hash='#/create';else create('game')})}
 function servers(){const act=PL.filter(p=>p.at>Date.now()-60000),ok=DB&&RM;
  app.innerHTML=`<h2>Servers <button id="rf" style="font-size:13px;padding:4px 10px;vertical-align:middle">↻ Refresh</button></h2><input id="sq" placeholder="🔎 Search games" value="${esc(SQ)}">${ok?'<p class="mut">Join a server to play with other people live. Up to 10 players each.</p>':'<p class="mut">Could not reach the server. Reload the page.</p>'}${games().filter(g=>!SQ||(g.name+' '+g.creator).toLowerCase().includes(SQ)).map(g=>`<h3>${esc(g.name)}</h3><div class='grid'>${Array.from({length:Math.min(20,Math.max(3,1+Math.max(0,...act.filter(p=>p.server.startsWith(g.id+'x')).map(p=>+p.server.slice(g.id.length+1)))))},(_,i)=>i+1).map(n=>{const id=g.id+'x'+n,ps=act.filter(p=>p.server==id);return `<div class='card'><b>Server ${n}</b><div class='mut' style='font-size:13px'>${ps.length}/10 players</div><div class='mut' style='font-size:12px;min-height:32px'>${ps.map(p=>`<u data-u="${esc(p.name)}" style="cursor:pointer">${esc(p.name)}</u>`).join(', ')||'Empty'}</div><button class='pri' data-j='${id}' data-g='${g.id}' style='width:100%' ${ok&&ps.length<10?'':'disabled'}>${ps.length>=10?'Full':'Join'}</button></div>`}).join('')}</div>`).join('')}`;
  app.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>play(games().find(g=>g.id==b.dataset.g),b.dataset.j));$('#sq').oninput=e=>{SQ=e.target.value.toLowerCase();servers();const q=$('#sq');q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
