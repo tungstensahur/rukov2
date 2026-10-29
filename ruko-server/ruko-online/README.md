@@ -83,3 +83,8 @@ object, every few seconds, when score reaches a number, or when a player presses
 Play sound, Wait, Teleport player, Change score/variable, Show/Hide, Change color, Move an object, Repeat, Forever, and If/then/else. A
 Recipes button offers ready-made scripts (pick-up, trap, teleporter, win pad, speed boost) for the selected object. Scripts, up to 40 per
 game and 300 blocks total, are saved and loaded with the rest of the level.
+
+## Friends and messages
+Friends and Messages tabs let players add each other as friends (by username, with accept/decline, and instant matching if both
+send a request) and send each other private messages. Only friends can message each other (the Ruko account can message anyone).
+Profile pages have an Add friend / Message button for players who aren't you.

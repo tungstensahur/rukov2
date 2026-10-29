@@ -2,7 +2,7 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
-let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{}};
+let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{},friends:{},freq:{},dm:{}};
 // Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
 // database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
 const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
@@ -17,11 +17,14 @@ const views={
  likes:()=>Object.entries(D.likes).map(([k,v])=>[k,JSON.stringify(v)]),
  shirtimgs:()=>Object.entries(D.shirtImg),
  plays:()=>Object.entries(D.plays).map(([k,v])=>[k,String(v)]),
- meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)])};
+ meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)]),
+ friends:()=>Object.entries(D.friends).map(([k,v])=>[k,JSON.stringify(v)]),
+ freq:()=>Object.entries(D.freq).map(([k,v])=>[k,JSON.stringify(v)]),
+ dm:()=>Object.entries(D.dm).map(([k,v])=>[k,JSON.stringify(v)])};
 const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
 const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
 async function loadRedis(){
- const[u,s,h,g,t,sa,l,si,pl,mt]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
+ const[u,s,h,g,t,sa,l,si,pl,mt,fr,fq,dm]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta','friends','freq','dm'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.friends=Object.fromEntries(Object.entries(fr).map(([k,v])=>[k,JSON.parse(v)]));D.freq=Object.fromEntries(Object.entries(fq).map(([k,v])=>[k,JSON.parse(v)]));D.dm=Object.fromEntries(Object.entries(dm).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
  D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
  D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
  D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
@@ -86,6 +89,9 @@ const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'P
 // Game visits: when someone joins a server of a game, its creator earns 10 Rukos (once per visitor per game every 10 minutes, never for your own visits).
 const vcool=new Map();
 const payVisit=(id,me)=>{const gid=id.slice(3).replace(/x\d+$/,''),g=D.games.find(x=>x.id==gid),cname=g?g.creator:(['g1','g2','g3'].includes(gid)?'Ruko':null);if(!cname)return;const cu=D.users[cname.toLowerCase()];if(!cu||cu.name===me.name)return;const key=me.name+'|'+gid,now=Date.now();if(now-(vcool.get(key)||0)<600000)return;vcool.set(key,now);cu.coins+=10;cu.ernVisits=(cu.ernVisits||0)+10;save()};
+// Friends and DMs. D.friends[name] = [names]. D.freq[name] = {from: ts} pending requests received. D.dm[convoKey] = [{from,text,t}], convoKey = sorted lowercase names joined by '|'.
+const convoKey=(a,b)=>[a.toLowerCase(),b.toLowerCase()].sort().join('|');
+const dmlc=new Map();
 const staff=u=>!!u&&!!(u.admin||u.mod);
 const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
@@ -169,7 +175,7 @@ const server=http.createServer(async(req,res)=>{
   const u=D.users[String(new URL(req.url,'http://x').searchParams.get('name')||'').toLowerCase()];
   if(!u||(u.banned&&!me.admin))return send(res,404,{error:'No such player.'});
   let playing=null;for(const id in rooms)for(const c of rooms[id].cl.values())if(c.name===u.name)playing=id.slice(3);
-  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
+  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,friend:me?(D.friends[me.name]||[]).includes(u.name):false,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
  }
  if(p=='/api/players'){
   if(!me)return need();
@@ -199,6 +205,41 @@ const server=http.createServer(async(req,res)=>{
  if(p=='/api/admin/all'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length])),meta:D.meta});
+ }
+ if(p=='/api/friends'){
+  if(!me)return need();
+  if(req.method=='GET'){const mine=D.friends[me.name]||[],inc=Object.entries(D.freq[me.name]||{}).map(([n])=>n),out=Object.entries(D.freq).filter(([,v])=>v[me.name]).map(([n])=>n);
+   return send(res,200,{friends:mine.map(n=>({name:n,online:(seen.get(n)||0)>Date.now()-120000})),incoming:inc,outgoing:out});}
+  const target=String(b.name||'').trim(),tk=target.toLowerCase(),tu=D.users[tk];
+  if(!tu||tu.banned||tk===me.name.toLowerCase())return send(res,400,{error:'No such player.'});
+  if(b.action=='request'){if((D.friends[me.name]||[]).includes(tu.name))return send(res,400,{error:'Already friends.'});
+   if(D.freq[tu.name]&&D.freq[tu.name][me.name])return send(res,400,{error:'Request already sent.'});
+   if(D.freq[me.name]&&D.freq[me.name][tu.name]){delete D.freq[me.name][tu.name];(D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1,matched:1})}
+   D.freq[tu.name]=D.freq[tu.name]||{};D.freq[tu.name][me.name]=Date.now();save();return send(res,200,{ok:1});}
+  if(b.action=='accept'){if(!D.freq[me.name]||!D.freq[me.name][tu.name])return send(res,400,{error:'No request from that player.'});delete D.freq[me.name][tu.name];
+   (D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1});}
+  if(b.action=='decline'){if(D.freq[me.name])delete D.freq[me.name][tu.name];save();return send(res,200,{ok:1});}
+  if(b.action=='cancel'){if(D.freq[tu.name])delete D.freq[tu.name][me.name];save();return send(res,200,{ok:1});}
+  if(b.action=='remove'){D.friends[me.name]=(D.friends[me.name]||[]).filter(n=>n!==tu.name);D.friends[tu.name]=(D.friends[tu.name]||[]).filter(n=>n!==me.name);save();return send(res,200,{ok:1});}
+  return send(res,400,{error:'Unknown action.'});
+ }
+ if(p=='/api/dm'){
+  if(!me)return need();
+  if(req.method=='GET'){const other=String(new URL(req.url,'http://x').searchParams.get('with')||'');const ou=D.users[other.toLowerCase()];if(!ou)return send(res,404,{error:'No such player.'});
+   const key=convoKey(me.name,ou.name),msgs=(D.dm[key]||[]).slice(-200);return send(res,200,{msgs,withName:ou.name});}
+  const other=String(b.to||''),ou=D.users[other.toLowerCase()];
+  if(!ou||ou.banned)return send(res,404,{error:'No such player.'});
+  if(ou.name===me.name)return send(res,400,{error:"You can't message yourself."});
+  if(!me.admin&&!(D.friends[me.name]||[]).includes(ou.name))return send(res,403,{error:'You can only message friends.'});
+  if(me.muted)return send(res,403,{error:'You are muted.'});
+  const now=Date.now();if(now-(dmlc.get(me.name)||0)<500)return send(res,429,{error:'Slow down.'});dmlc.set(me.name,now);
+  const text=String(b.text||'').trim().slice(0,500);if(!text)return send(res,400,{error:'Empty message.'});
+  const key=convoKey(me.name,ou.name);(D.dm[key]=D.dm[key]||[]).push({from:me.name,text,t:now});if(D.dm[key].length>200)D.dm[key].shift();save();return send(res,200,{ok:1});
+ }
+ if(p=='/api/conversations'){
+  if(!me)return need();const names=new Set();Object.keys(D.dm).forEach(k=>{const[a,b2]=k.split('|');if(a===me.name.toLowerCase())names.add(b2);else if(b2===me.name.toLowerCase())names.add(a)});
+  const list=[...names].map(n=>{const u=D.users[n];if(!u)return null;const key=convoKey(me.name,u.name),msgs=D.dm[key]||[],last=msgs[msgs.length-1];return{name:u.name,last:last?last.text:'',t:last?last.t:0,online:(seen.get(u.name)||0)>Date.now()-120000}}).filter(Boolean).sort((a,b)=>b.t-a.t);
+  return send(res,200,{convos:list});
  }
  if(p=='/api/admin/pending'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
