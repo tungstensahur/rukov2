@@ -75,3 +75,11 @@ snap, keyboard shortcuts, and a Game tab for settings, thumbnail and weapons. Le
 Sky Steps, Coin Rush and Ruko Park are now normal games owned by the Ruko account. In Admin > Games the owner can rename them, change the
 description, remove or replace the thumbnail, open them in Ruko Studio to edit the level, or delete them (they stay deleted; Admin > Tools can restore them).
 The run animation now advances by distance travelled instead of absolute time, so it is slower, smoother and eases in and out.
+
+## Block code
+Ruko Studio has a new Code tab. Scripts are built from blocks, not typed code, and run safely on the server (the server re-validates every
+block, so nothing a player writes can run arbitrary code). A script starts with a trigger — when the game starts, when a player touches an
+object, every few seconds, when score reaches a number, or when a player presses an Action key (G or H) — followed by blocks such as Say,
+Play sound, Wait, Teleport player, Change score/variable, Show/Hide, Change color, Move an object, Repeat, Forever, and If/then/else. A
+Recipes button offers ready-made scripts (pick-up, trap, teleporter, win pad, speed boost) for the selected object. Scripts, up to 40 per
+game and 300 blocks total, are saved and loaded with the rest of the level.

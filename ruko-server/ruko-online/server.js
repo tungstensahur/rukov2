@@ -54,6 +54,33 @@ function builtinObjs(g){let sd=(+g.seed||1)%2147483646+1;const r=()=>(sd=(sd*168
   if(g.mode=='coins')for(let i=0;i<25;i++)o.push({k:'c',x:+((r()-.5)*40).toFixed(2),y:+(.9+r()*1.4).toFixed(2),z:+((r()-.5)*40).toFixed(2)})}
  return o}
 function seedBuiltins(){const rm=D.meta.__removed||{};let n=0;for(const b of BUILTIN){if(rm[b.id]||D.games.some(g=>g.id==b.id))continue;D.games.push({id:b.id,creator:'Ruko',name:b.name,desc:b.desc,genre:b.genre,mode:'custom',sky:b.sky,ground:b.ground,size:16,seed:1,spd:7,jmp:9,grav:22,coinN:25,cps:false,pvp:false,hp:100,resp:3,weapons:[],startW:[],light:1,fog:true,killY:-15,objs:builtinObjs(b),tv:0,at:0});n++}if(n)save();return n}
+
+// Block code: scripts are plain data (never executed as code on the server or client). Everything is whitelisted and clamped here.
+const sStr=(v,n)=>String(v==null?'':v).slice(0,n),sUid=v=>/^[\w-]{1,10}$/.test(String(v))?String(v):'';
+const sCond=c=>{c=c||{};const v=['score','A','B','C','y','time','coins','chance'].includes(c.v)?c.v:'score';return{v,o:['>','<','='].includes(c.o)?c.o:'>',n:clamp(c.n,-99999,99999,0)}};
+let scBudget=0;
+function sBlocks(list,d){if(!Array.isArray(list)||d>5)return[];const out=[];for(const b of list.slice(0,80)){if(!b||scBudget<=0)break;const t=b.t;let r=null;
+ switch(t){
+  case 'say':r={t,m:sStr(b.m,80),s:clamp(b.s,0,30,2)};break;
+  case 'sound':r={t,k:['beep','coin','jump','boom','win','hurt'].includes(b.k)?b.k:'beep'};break;
+  case 'wait':r={t,s:clamp(b.s,0,60,1)};break;
+  case 'tp':r={t,w:['spawn','obj','pos'].includes(b.w)?b.w:'spawn',o:sUid(b.o),x:clamp(b.x,-300,300,0),y:clamp(b.y,-30,300,0),z:clamp(b.z,-300,300,0)};break;
+  case 'respawn':case 'stop':r={t};break;
+  case 'win':r={t,m:sStr(b.m,80)};break;
+  case 'score':r={t,op:b.op=='set'?'set':'add',n:clamp(b.n,-99999,99999,1)};break;
+  case 'var':r={t,v:['A','B','C'].includes(b.v)?b.v:'A',op:b.op=='set'?'set':'add',n:clamp(b.n,-99999,99999,1)};break;
+  case 'phys':{const k=['speed','jump','gravity'].includes(b.k)?b.k:'speed',R={speed:[2,40,7],jump:[3,40,9],gravity:[3,80,22]}[k];r={t,k,n:clamp(b.n,R[0],R[1],R[2])};break}
+  case 'show':r={t,o:sUid(b.o),on:b.on=='hide'?'hide':'show'};break;
+  case 'color':r={t,o:sUid(b.o),c:col(b.c)};break;
+  case 'move':r={t,o:sUid(b.o),x:clamp(b.x,-200,200,0),y:clamp(b.y,-200,200,0),z:clamp(b.z,-200,200,0),s:clamp(b.s,0,30,1)};break;
+  case 'sky':r={t,c:col(b.c)};break;
+  case 'rep':r={t,n:clamp(b.n,1,100,3)|0,b:sBlocks(b.b,d+1)};break;
+  case 'forever':r={t,b:sBlocks(b.b,d+1)};break;
+  case 'if':r={t,c:sCond(b.c),y:sBlocks(b.y,d+1),n:sBlocks(b.n,d+1)};break}
+ if(r){scBudget--;out.push(r)}}return out}
+function sScripts(list){scBudget=300;if(!Array.isArray(list))return[];return list.slice(0,40).map(s=>{const h=(s&&s.h)||{},t=h.t;let H=null;
+ if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};
+ return H?{h:H,b:sBlocks(s.b,0)}:null}).filter(Boolean)}
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
 const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};
 // Game visits: when someone joins a server of a game, its creator earns 10 Rukos (once per visitor per game every 10 minutes, never for your own visits).
@@ -184,12 +211,12 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p=='/api/game'){const g=D.games.find(x=>x.id==new URL(req.url,'http://x').searchParams.get('id'));return g?send(res,200,{game:{...g,thumb:undefined}}):send(res,404,{error:'Not found.'})}
  if(p=='/api/games'){
-  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0})),plays:D.plays});
+  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,scripts:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0,sc:g.scripts?g.scripts.length:0})),plays:D.plays});
   if(!me)return need();
   const objs=Array.isArray(b.objs)?b.objs.slice(0,300).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-200,200,0),y:clamp(o.y,-20,200,0),z:clamp(o.z,-200,200,0)};
    if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,200,3);r.sz=clamp(o.sz,.5,200,3);r.th=clamp(o.th,.25,40,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
    if(k=='d'){r.shape=['box','sphere','cone','cylinder','pyramid','prism'].includes(o.shape)?o.shape:'box';r.sx=clamp(o.sx,.1,40,2);r.sy=clamp(o.sy,.1,40,2);r.sz=clamp(o.sz,.1,40,2);r.c=col(o.c)}
-   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;if(typeof o.nm=='string'&&o.nm)r.nm=o.nm.slice(0,16);return r}).filter(Boolean):null;
+   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;if(typeof o.nm=='string'&&o.nm)r.nm=o.nm.slice(0,16);if(typeof o.u=='string'&&/^[\w-]{1,10}$/.test(o.u))r.u=o.u;return r}).filter(Boolean):null;
   if(objs&&!objs.some(o=>o.k=='p'))return send(res,400,{error:'Add at least one platform.'});
   let th=null;if(typeof b.thumb=='string'){if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(b.thumb)||b.thumb.length>90000)return send(res,400,{error:'Thumbnail must be a small image.'});th=b.thumb}
   const ex=b.update?D.games.find(g=>g.id==b.id):null;
@@ -197,7 +224,7 @@ const server=http.createServer(async(req,res)=>{
   if(!ex&&D.games.filter(g=>g.creator==me.name).length>=30)return send(res,400,{error:'Game limit reached (30).'});
   const W=Array.isArray(b.weapons)?b.weapons.slice(0,6).map(w=>({n:String(w.n||'Weapon').slice(0,16),t:w.t=='melee'?'melee':'gun',dmg:clamp(w.dmg,1,100,15),cd:clamp(w.cd,.1,3,.4),rng:clamp(w.rng,2,200,w.t=='melee'?4.5:80),pel:clamp(w.pel,1,8,1)|0,spr:clamp(w.spr,0,20,0),m:['blade','knife','hammer','pistol','smg','rifle','shotgun','sniper'].includes(w.m)?w.m:(w.t=='melee'?'blade':'pistol'),mag:clamp(w.mag,0,100,0)|0,rel:clamp(w.rel,.5,5,1.5),auto:w.auto!==false,c:col(w.c)})):[];
   const SW=Array.isArray(b.startW)?b.startW.map(i=>i|0).filter((i,n,a)=>i>=0&&i<W.length&&a.indexOf(i)==n).slice(0,3):[];
-  const f={name:String(b.name||'Untitled').slice(0,24),desc:String(b.desc||'').slice(0,80),genre:['Obby','Adventure','Parkour','Chill','Puzzle'].includes(b.genre)?b.genre:'Obby',mode:['obby','coins','roam','custom'].includes(b.mode)?b.mode:'obby',sky:col(b.sky),ground:col(b.ground),size:clamp(b.size,5,40,16)|0,seed:clamp(b.seed,1,999999,1)|0,spd:clamp(b.spd,4,14,7),jmp:clamp(b.jmp,6,16,9),grav:clamp(b.grav,10,40,22),coinN:clamp(b.coinN,5,60,25)|0,cps:!!b.cps,pvp:!!b.pvp&&W.length>0,hp:clamp(b.hp,20,500,100)|0,resp:clamp(b.resp,1,15,3),weapons:W,startW:SW,light:clamp(b.light,.3,1.6,1),fog:b.fog!==false,killY:clamp(b.killY,-80,-5,-15),objs};
+  const f={name:String(b.name||'Untitled').slice(0,24),desc:String(b.desc||'').slice(0,80),genre:['Obby','Adventure','Parkour','Chill','Puzzle'].includes(b.genre)?b.genre:'Obby',mode:['obby','coins','roam','custom'].includes(b.mode)?b.mode:'obby',sky:col(b.sky),ground:col(b.ground),size:clamp(b.size,5,40,16)|0,seed:clamp(b.seed,1,999999,1)|0,spd:clamp(b.spd,4,14,7),jmp:clamp(b.jmp,6,16,9),grav:clamp(b.grav,10,40,22),coinN:clamp(b.coinN,5,60,25)|0,cps:!!b.cps,scripts:sScripts(b.scripts),pvp:!!b.pvp&&W.length>0,hp:clamp(b.hp,20,500,100)|0,resp:clamp(b.resp,1,15,3),weapons:W,startW:SW,light:clamp(b.light,.3,1.6,1),fog:b.fog!==false,killY:clamp(b.killY,-80,-5,-15),objs};
   if(ex){Object.assign(ex,f);if(th){ex.thumb=th;ex.tv=Date.now()}else if(b.dropThumb){delete ex.thumb;ex.tv=0}save();return send(res,200,{id:ex.id})}
   const id=/^c\d{10,14}$/.test(b.id)&&!D.games.some(g=>g.id==b.id)?b.id:'c'+Date.now()+rnd(1).replace(/\D/g,'');
   D.games.push({id,creator:me.name,...f,thumb:th||undefined,tv:th?Date.now():0,at:Date.now()});save();return send(res,200,{id});
