@@ -64,27 +64,3 @@ undo/redo, up to 24 parts, and an automatic draft so you do not lose work.
 ## Refresh on open
 Pages no longer update on a timer. Sales, visits, balances, likes and active servers refresh when you open a page (including after leaving a game),
 and the Games, Catalog and Servers pages have a ↻ Refresh button. Only the Chat page keeps updating live.
-
-## Physics, camera and Ruko Studio
-Movement now accelerates and slows down smoothly, with a short grace period for jumping after leaving a ledge, a jump buffer, variable jump height,
-auto step-up for small ledges and a smooth follow camera. You can look up and down (drag up/down); weapons aim where the camera points (crosshair in PVP games).
-The game editor is now Ruko Studio: a 3D viewport with Select / Move / Scale tools and drag handles, a Toolbox, an Explorer, a Properties panel, undo/redo,
-snap, keyboard shortcuts, and a Game tab for settings, thumbnail and weapons. Levels can hold 300 objects and span about 400 studs.
-
-## Built-in games and run animation
-Sky Steps, Coin Rush and Ruko Park are now normal games owned by the Ruko account. In Admin > Games the owner can rename them, change the
-description, remove or replace the thumbnail, open them in Ruko Studio to edit the level, or delete them (they stay deleted; Admin > Tools can restore them).
-The run animation now advances by distance travelled instead of absolute time, so it is slower, smoother and eases in and out.
-
-## Block code
-Ruko Studio has a new Code tab. Scripts are built from blocks, not typed code, and run safely on the server (the server re-validates every
-block, so nothing a player writes can run arbitrary code). A script starts with a trigger — when the game starts, when a player touches an
-object, every few seconds, when score reaches a number, or when a player presses an Action key (G or H) — followed by blocks such as Say,
-Play sound, Wait, Teleport player, Change score/variable, Show/Hide, Change color, Move an object, Repeat, Forever, and If/then/else. A
-Recipes button offers ready-made scripts (pick-up, trap, teleporter, win pad, speed boost) for the selected object. Scripts, up to 40 per
-game and 300 blocks total, are saved and loaded with the rest of the level.
-
-## Friends and messages
-Friends and Messages tabs let players add each other as friends (by username, with accept/decline, and instant matching if both
-send a request) and send each other private messages. Only friends can message each other (the Ruko account can message anyone).
-Profile pages have an Add friend / Message button for players who aren't you.

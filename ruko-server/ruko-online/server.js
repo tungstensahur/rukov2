@@ -2,7 +2,7 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
-let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{},friends:{},freq:{},dm:{}};
+let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{}};
 // Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
 // database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
 const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
@@ -17,14 +17,11 @@ const views={
  likes:()=>Object.entries(D.likes).map(([k,v])=>[k,JSON.stringify(v)]),
  shirtimgs:()=>Object.entries(D.shirtImg),
  plays:()=>Object.entries(D.plays).map(([k,v])=>[k,String(v)]),
- meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)]),
- friends:()=>Object.entries(D.friends).map(([k,v])=>[k,JSON.stringify(v)]),
- freq:()=>Object.entries(D.freq).map(([k,v])=>[k,JSON.stringify(v)]),
- dm:()=>Object.entries(D.dm).map(([k,v])=>[k,JSON.stringify(v)])};
+ meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)])};
 const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
 const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
 async function loadRedis(){
- const[u,s,h,g,t,sa,l,si,pl,mt,fr,fq,dm]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta','friends','freq','dm'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.friends=Object.fromEntries(Object.entries(fr).map(([k,v])=>[k,JSON.parse(v)]));D.freq=Object.fromEntries(Object.entries(fq).map(([k,v])=>[k,JSON.parse(v)]));D.dm=Object.fromEntries(Object.entries(dm).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
+ const[u,s,h,g,t,sa,l,si,pl,mt]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
  D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
  D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
  D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
@@ -48,54 +45,14 @@ process.on('SIGTERM',async()=>{dirty=1;busy=0;try{await flush()}catch(e){}proces
 const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
-// The built-in games are ordinary games owned by Ruko (so the owner can edit or delete them). They are created once, and stay deleted if the owner deletes them.
-const hsl2hex=(h,s,l)=>{h/=360;s/=100;l/=100;const f=n=>{const k=(n+h*12)%12,a=s*Math.min(l,1-l);return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1))))};return '#'+[f(0),f(8),f(4)].map(x=>x.toString(16).padStart(2,'0')).join('')};
-const BUILTIN=[{id:'g1',name:'Sky Steps',desc:'Jump up the floating obby to the golden platform.',mode:'obby',sky:'#8fd3ff',ground:'#5bd16a',seed:7,size:18,genre:'Obby'},{id:'g2',name:'Coin Rush',desc:'Grab every coin in the park.',mode:'coins',sky:'#ffd9a0',ground:'#7bc96f',seed:3,size:20,genre:'Adventure'},{id:'g3',name:'Ruko Park',desc:'Free roam. Show off your hats.',mode:'roam',sky:'#b7e3ff',ground:'#9fd3a0',seed:11,size:12,genre:'Chill'}];
-function builtinObjs(g){let sd=(+g.seed||1)%2147483646+1;const r=()=>(sd=(sd*16807)%2147483647)/2147483647,o=[{k:'s',x:0,y:0,z:0}],P=(x,y,z,sx,sz,c,t)=>o.push({k:'p',t:t||'solid',x:+x.toFixed(2),y:+y.toFixed(2),z:+z.toFixed(2),sx,sz,th:.5,c});
- if(g.mode=='obby'){P(0,0,0,6,6,g.ground);let x=0,y=0,z=0;const n=Math.max(5,Math.min(40,g.size));for(let i=0;i<n;i++){x+=(r()-.5)*6;y+=.3+r()*.9;z-=4.5+r()*1.5;P(x,y,z,3,3,i==n-1?'#ffd23f':hsl2hex(i*37%360,70,60),i==n-1?'goal':'solid')}}
- else{P(0,0,0,60,60,g.ground);for(let i=0;i<(g.mode=='roam'?12:6);i++){const x=(r()-.5)*40,y=.8+r()*2,z=(r()-.5)*40;P(x,y,z,3,3,hsl2hex(r()*360,60,60))}
-  if(g.mode=='coins')for(let i=0;i<25;i++)o.push({k:'c',x:+((r()-.5)*40).toFixed(2),y:+(.9+r()*1.4).toFixed(2),z:+((r()-.5)*40).toFixed(2)})}
- return o}
-function seedBuiltins(){const rm=D.meta.__removed||{};let n=0;for(const b of BUILTIN){if(rm[b.id]||D.games.some(g=>g.id==b.id))continue;D.games.push({id:b.id,creator:'Ruko',name:b.name,desc:b.desc,genre:b.genre,mode:'custom',sky:b.sky,ground:b.ground,size:16,seed:1,spd:7,jmp:9,grav:22,coinN:25,cps:false,pvp:false,hp:100,resp:3,weapons:[],startW:[],light:1,fog:true,killY:-15,objs:builtinObjs(b),tv:0,at:0});n++}if(n)save();return n}
-
-// Block code: scripts are plain data (never executed as code on the server or client). Everything is whitelisted and clamped here.
-const sStr=(v,n)=>String(v==null?'':v).slice(0,n),sUid=v=>/^[\w-]{1,10}$/.test(String(v))?String(v):'';
-const sCond=c=>{c=c||{};const v=['score','A','B','C','y','time','coins','chance'].includes(c.v)?c.v:'score';return{v,o:['>','<','='].includes(c.o)?c.o:'>',n:clamp(c.n,-99999,99999,0)}};
-let scBudget=0;
-function sBlocks(list,d){if(!Array.isArray(list)||d>5)return[];const out=[];for(const b of list.slice(0,80)){if(!b||scBudget<=0)break;const t=b.t;let r=null;
- switch(t){
-  case 'say':r={t,m:sStr(b.m,80),s:clamp(b.s,0,30,2)};break;
-  case 'sound':r={t,k:['beep','coin','jump','boom','win','hurt'].includes(b.k)?b.k:'beep'};break;
-  case 'wait':r={t,s:clamp(b.s,0,60,1)};break;
-  case 'tp':r={t,w:['spawn','obj','pos'].includes(b.w)?b.w:'spawn',o:sUid(b.o),x:clamp(b.x,-300,300,0),y:clamp(b.y,-30,300,0),z:clamp(b.z,-300,300,0)};break;
-  case 'respawn':case 'stop':r={t};break;
-  case 'win':r={t,m:sStr(b.m,80)};break;
-  case 'score':r={t,op:b.op=='set'?'set':'add',n:clamp(b.n,-99999,99999,1)};break;
-  case 'var':r={t,v:['A','B','C'].includes(b.v)?b.v:'A',op:b.op=='set'?'set':'add',n:clamp(b.n,-99999,99999,1)};break;
-  case 'phys':{const k=['speed','jump','gravity'].includes(b.k)?b.k:'speed',R={speed:[2,40,7],jump:[3,40,9],gravity:[3,80,22]}[k];r={t,k,n:clamp(b.n,R[0],R[1],R[2])};break}
-  case 'show':r={t,o:sUid(b.o),on:b.on=='hide'?'hide':'show'};break;
-  case 'color':r={t,o:sUid(b.o),c:col(b.c)};break;
-  case 'move':r={t,o:sUid(b.o),x:clamp(b.x,-200,200,0),y:clamp(b.y,-200,200,0),z:clamp(b.z,-200,200,0),s:clamp(b.s,0,30,1)};break;
-  case 'sky':r={t,c:col(b.c)};break;
-  case 'rep':r={t,n:clamp(b.n,1,100,3)|0,b:sBlocks(b.b,d+1)};break;
-  case 'forever':r={t,b:sBlocks(b.b,d+1)};break;
-  case 'if':r={t,c:sCond(b.c),y:sBlocks(b.y,d+1),n:sBlocks(b.n,d+1)};break}
- if(r){scBudget--;out.push(r)}}return out}
-function sScripts(list){scBudget=300;if(!Array.isArray(list))return[];return list.slice(0,40).map(s=>{const h=(s&&s.h)||{},t=h.t;let H=null;
- if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};
- return H?{h:H,b:sBlocks(s.b,0)}:null}).filter(Boolean)}
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
 const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};
 // Game visits: when someone joins a server of a game, its creator earns 10 Rukos (once per visitor per game every 10 minutes, never for your own visits).
 const vcool=new Map();
 const payVisit=(id,me)=>{const gid=id.slice(3).replace(/x\d+$/,''),g=D.games.find(x=>x.id==gid),cname=g?g.creator:(['g1','g2','g3'].includes(gid)?'Ruko':null);if(!cname)return;const cu=D.users[cname.toLowerCase()];if(!cu||cu.name===me.name)return;const key=me.name+'|'+gid,now=Date.now();if(now-(vcool.get(key)||0)<600000)return;vcool.set(key,now);cu.coins+=10;cu.ernVisits=(cu.ernVisits||0)+10;save()};
-// Friends and DMs. D.friends[name] = [names]. D.freq[name] = {from: ts} pending requests received. D.dm[convoKey] = [{from,text,t}], convoKey = sorted lowercase names joined by '|'.
-const convoKey=(a,b)=>[a.toLowerCase(),b.toLowerCase()].sort().join('|');
-const dmlc=new Map();
 const staff=u=>!!u&&!!(u.admin||u.mod);
 const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
-function rayBox3(ox,oy,oz,dx,dz,sl,b){let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}if(t0<=0)return null;const h0=oy+sl*t0,h1=oy+sl*t1,lo=Math.min(h0,h1),hi=Math.max(h0,h1);return hi<b.y0||lo>b.y1?null:t0}
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
 const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,ernSales:u.ernSales||0,ernVisits:u.ernVisits||0,log:(u.log||[]).slice(-10),bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
@@ -164,7 +121,7 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();
   const L=b.kind=='hat'?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
   if(L[i].creator!==me.name&&!me.admin)return send(res,403,{error:'That is not yours.'});
-  L.splice(i,1);if(b.kind!='hat'&&BUILTIN.some(x=>x.id==b.id))(D.meta.__removed=D.meta.__removed||{})[b.id]=1;if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}save();return send(res,200,{ok:1});
+  L.splice(i,1);if(b.kind=='hat'){delete D.sales[b.id];delete D.likes[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}save();return send(res,200,{ok:1});
  }
  if(p=='/api/admin/chatdel'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
@@ -175,7 +132,7 @@ const server=http.createServer(async(req,res)=>{
   const u=D.users[String(new URL(req.url,'http://x').searchParams.get('name')||'').toLowerCase()];
   if(!u||(u.banned&&!me.admin))return send(res,404,{error:'No such player.'});
   let playing=null;for(const id in rooms)for(const c of rooms[id].cl.values())if(c.name===u.name)playing=id.slice(3);
-  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,friend:me?(D.friends[me.name]||[]).includes(u.name):false,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
+  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
  }
  if(p=='/api/players'){
   if(!me)return need();
@@ -206,41 +163,6 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length])),meta:D.meta});
  }
- if(p=='/api/friends'){
-  if(!me)return need();
-  if(req.method=='GET'){const mine=D.friends[me.name]||[],inc=Object.entries(D.freq[me.name]||{}).map(([n])=>n),out=Object.entries(D.freq).filter(([,v])=>v[me.name]).map(([n])=>n);
-   return send(res,200,{friends:mine.map(n=>({name:n,online:(seen.get(n)||0)>Date.now()-120000})),incoming:inc,outgoing:out});}
-  const target=String(b.name||'').trim(),tk=target.toLowerCase(),tu=D.users[tk];
-  if(!tu||tu.banned||tk===me.name.toLowerCase())return send(res,400,{error:'No such player.'});
-  if(b.action=='request'){if((D.friends[me.name]||[]).includes(tu.name))return send(res,400,{error:'Already friends.'});
-   if(D.freq[tu.name]&&D.freq[tu.name][me.name])return send(res,400,{error:'Request already sent.'});
-   if(D.freq[me.name]&&D.freq[me.name][tu.name]){delete D.freq[me.name][tu.name];(D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1,matched:1})}
-   D.freq[tu.name]=D.freq[tu.name]||{};D.freq[tu.name][me.name]=Date.now();save();return send(res,200,{ok:1});}
-  if(b.action=='accept'){if(!D.freq[me.name]||!D.freq[me.name][tu.name])return send(res,400,{error:'No request from that player.'});delete D.freq[me.name][tu.name];
-   (D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1});}
-  if(b.action=='decline'){if(D.freq[me.name])delete D.freq[me.name][tu.name];save();return send(res,200,{ok:1});}
-  if(b.action=='cancel'){if(D.freq[tu.name])delete D.freq[tu.name][me.name];save();return send(res,200,{ok:1});}
-  if(b.action=='remove'){D.friends[me.name]=(D.friends[me.name]||[]).filter(n=>n!==tu.name);D.friends[tu.name]=(D.friends[tu.name]||[]).filter(n=>n!==me.name);save();return send(res,200,{ok:1});}
-  return send(res,400,{error:'Unknown action.'});
- }
- if(p=='/api/dm'){
-  if(!me)return need();
-  if(req.method=='GET'){const other=String(new URL(req.url,'http://x').searchParams.get('with')||'');const ou=D.users[other.toLowerCase()];if(!ou)return send(res,404,{error:'No such player.'});
-   const key=convoKey(me.name,ou.name),msgs=(D.dm[key]||[]).slice(-200);return send(res,200,{msgs,withName:ou.name});}
-  const other=String(b.to||''),ou=D.users[other.toLowerCase()];
-  if(!ou||ou.banned)return send(res,404,{error:'No such player.'});
-  if(ou.name===me.name)return send(res,400,{error:"You can't message yourself."});
-  if(!me.admin&&!(D.friends[me.name]||[]).includes(ou.name))return send(res,403,{error:'You can only message friends.'});
-  if(me.muted)return send(res,403,{error:'You are muted.'});
-  const now=Date.now();if(now-(dmlc.get(me.name)||0)<500)return send(res,429,{error:'Slow down.'});dmlc.set(me.name,now);
-  const text=String(b.text||'').trim().slice(0,500);if(!text)return send(res,400,{error:'Empty message.'});
-  const key=convoKey(me.name,ou.name);(D.dm[key]=D.dm[key]||[]).push({from:me.name,text,t:now});if(D.dm[key].length>200)D.dm[key].shift();save();return send(res,200,{ok:1});
- }
- if(p=='/api/conversations'){
-  if(!me)return need();const names=new Set();Object.keys(D.dm).forEach(k=>{const[a,b2]=k.split('|');if(a===me.name.toLowerCase())names.add(b2);else if(b2===me.name.toLowerCase())names.add(a)});
-  const list=[...names].map(n=>{const u=D.users[n];if(!u)return null;const key=convoKey(me.name,u.name),msgs=D.dm[key]||[],last=msgs[msgs.length-1];return{name:u.name,last:last?last.text:'',t:last?last.t:0,online:(seen.get(u.name)||0)>Date.now()-120000}}).filter(Boolean).sort((a,b)=>b.t-a.t);
-  return send(res,200,{convos:list});
- }
  if(p=='/api/admin/pending'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   return send(res,200,{items:D.hats.filter(h=>h.status==='pending')});
@@ -252,12 +174,12 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p=='/api/game'){const g=D.games.find(x=>x.id==new URL(req.url,'http://x').searchParams.get('id'));return g?send(res,200,{game:{...g,thumb:undefined}}):send(res,404,{error:'Not found.'})}
  if(p=='/api/games'){
-  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,scripts:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0,sc:g.scripts?g.scripts.length:0})),plays:D.plays});
+  if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0})),plays:D.plays});
   if(!me)return need();
-  const objs=Array.isArray(b.objs)?b.objs.slice(0,300).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-200,200,0),y:clamp(o.y,-20,200,0),z:clamp(o.z,-200,200,0)};
-   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,200,3);r.sz=clamp(o.sz,.5,200,3);r.th=clamp(o.th,.25,40,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
+  const objs=Array.isArray(b.objs)?b.objs.slice(0,150).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-60,60,0),y:clamp(o.y,-5,60,0),z:clamp(o.z,-60,60,0)};
+   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,80,3);r.sz=clamp(o.sz,.5,80,3);r.th=clamp(o.th,.25,20,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
    if(k=='d'){r.shape=['box','sphere','cone','cylinder','pyramid','prism'].includes(o.shape)?o.shape:'box';r.sx=clamp(o.sx,.1,40,2);r.sy=clamp(o.sy,.1,40,2);r.sz=clamp(o.sz,.1,40,2);r.c=col(o.c)}
-   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;if(typeof o.nm=='string'&&o.nm)r.nm=o.nm.slice(0,16);if(typeof o.u=='string'&&/^[\w-]{1,10}$/.test(o.u))r.u=o.u;return r}).filter(Boolean):null;
+   if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;return r}).filter(Boolean):null;
   if(objs&&!objs.some(o=>o.k=='p'))return send(res,400,{error:'Add at least one platform.'});
   let th=null;if(typeof b.thumb=='string'){if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(b.thumb)||b.thumb.length>90000)return send(res,400,{error:'Thumbnail must be a small image.'});th=b.thumb}
   const ex=b.update?D.games.find(g=>g.id==b.id):null;
@@ -265,7 +187,7 @@ const server=http.createServer(async(req,res)=>{
   if(!ex&&D.games.filter(g=>g.creator==me.name).length>=30)return send(res,400,{error:'Game limit reached (30).'});
   const W=Array.isArray(b.weapons)?b.weapons.slice(0,6).map(w=>({n:String(w.n||'Weapon').slice(0,16),t:w.t=='melee'?'melee':'gun',dmg:clamp(w.dmg,1,100,15),cd:clamp(w.cd,.1,3,.4),rng:clamp(w.rng,2,200,w.t=='melee'?4.5:80),pel:clamp(w.pel,1,8,1)|0,spr:clamp(w.spr,0,20,0),m:['blade','knife','hammer','pistol','smg','rifle','shotgun','sniper'].includes(w.m)?w.m:(w.t=='melee'?'blade':'pistol'),mag:clamp(w.mag,0,100,0)|0,rel:clamp(w.rel,.5,5,1.5),auto:w.auto!==false,c:col(w.c)})):[];
   const SW=Array.isArray(b.startW)?b.startW.map(i=>i|0).filter((i,n,a)=>i>=0&&i<W.length&&a.indexOf(i)==n).slice(0,3):[];
-  const f={name:String(b.name||'Untitled').slice(0,24),desc:String(b.desc||'').slice(0,80),genre:['Obby','Adventure','Parkour','Chill','Puzzle'].includes(b.genre)?b.genre:'Obby',mode:['obby','coins','roam','custom'].includes(b.mode)?b.mode:'obby',sky:col(b.sky),ground:col(b.ground),size:clamp(b.size,5,40,16)|0,seed:clamp(b.seed,1,999999,1)|0,spd:clamp(b.spd,4,14,7),jmp:clamp(b.jmp,6,16,9),grav:clamp(b.grav,10,40,22),coinN:clamp(b.coinN,5,60,25)|0,cps:!!b.cps,scripts:sScripts(b.scripts),pvp:!!b.pvp&&W.length>0,hp:clamp(b.hp,20,500,100)|0,resp:clamp(b.resp,1,15,3),weapons:W,startW:SW,light:clamp(b.light,.3,1.6,1),fog:b.fog!==false,killY:clamp(b.killY,-80,-5,-15),objs};
+  const f={name:String(b.name||'Untitled').slice(0,24),desc:String(b.desc||'').slice(0,80),genre:['Obby','Adventure','Parkour','Chill','Puzzle'].includes(b.genre)?b.genre:'Obby',mode:['obby','coins','roam','custom'].includes(b.mode)?b.mode:'obby',sky:col(b.sky),ground:col(b.ground),size:clamp(b.size,5,40,16)|0,seed:clamp(b.seed,1,999999,1)|0,spd:clamp(b.spd,4,14,7),jmp:clamp(b.jmp,6,16,9),grav:clamp(b.grav,10,40,22),coinN:clamp(b.coinN,5,60,25)|0,cps:!!b.cps,pvp:!!b.pvp&&W.length>0,hp:clamp(b.hp,20,500,100)|0,resp:clamp(b.resp,1,15,3),weapons:W,startW:SW,light:clamp(b.light,.3,1.6,1),fog:b.fog!==false,killY:clamp(b.killY,-80,-5,-15),objs};
   if(ex){Object.assign(ex,f);if(th){ex.thumb=th;ex.tv=Date.now()}else if(b.dropThumb){delete ex.thumb;ex.tv=0}save();return send(res,200,{id:ex.id})}
   const id=/^c\d{10,14}$/.test(b.id)&&!D.games.some(g=>g.id==b.id)?b.id:'c'+Date.now()+rnd(1).replace(/\D/g,'');
   D.games.push({id,creator:me.name,...f,thumb:th||undefined,tv:th?Date.now():0,at:Date.now()});save();return send(res,200,{id});
@@ -287,10 +209,6 @@ const server=http.createServer(async(req,res)=>{
   const g=Math.max(0,Math.min(n,400-me.earn.reduce((a,e)=>a+e[1],0)));
   if(g){/* coins collected inside games no longer count toward the account balance */}return send(res,200,{me:pubUser(me)});
  }
- if(p=='/api/admin/restore'){
-  if(!me)return need();if(!me.admin)return send(res,403,{error:'Admins only.'});
-  delete D.meta.__removed;const n=seedBuiltins();save();return send(res,200,{ok:1,restored:n});
- }
  if(p=='/api/admin/item'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const id=String(b.id),h=D.hats.find(x=>x.id==id);if(!h&&!(id in PRICE))return send(res,404,{error:'No such item.'});
@@ -306,7 +224,7 @@ const server=http.createServer(async(req,res)=>{
  if(p=='/api/admin/hat'||p=='/api/admin/game'){
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   const hat=p.endsWith('hat'),L=hat?D.hats:D.games,i=L.findIndex(x=>x.id==b.id);if(i<0)return send(res,404,{error:'Not found.'});
-  if(b.action=='delete'){if(!me.admin)return send(res,403,{error:'Only the owner can delete.'});L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}if(!hat&&BUILTIN.some(x=>x.id==b.id))(D.meta.__removed=D.meta.__removed||{})[b.id]=1}
+  if(b.action=='delete'){if(!me.admin)return send(res,403,{error:'Only the owner can delete.'});L.splice(i,1);if(hat){delete D.sales[b.id];delete D.shirtImg[b.id];delete D.meta[b.id]}}
   else if(b.action=='edit'){const x=L[i];if(b.name)x.name=String(b.name).slice(0,hat?20:24);if(hat){if(me.admin)x.price=clamp(b.price,0,1000,x.price)|0}else if(typeof b.desc=='string')x.desc=b.desc.slice(0,80);if(!hat&&b.dropThumb){delete x.thumb;x.tv=0}}
   save();return send(res,200,{ok:1});
  }
@@ -354,16 +272,16 @@ const server=http.createServer(async(req,res)=>{
    if(c.rl&&now<c.rl)return send(res,200,{ok:0});
    if(now-c.lf<wd.cd*1000-120)return send(res,200,{ok:0});c.lf=now;
    if(wd.mag>0){const cur=c.am[c.cw]!=null?c.am[c.cw]:wd.mag;if(cur<=0){c.rl=now+wd.rel*1000;c.rw=c.cw;r.dirty=1;return send(res,200,{ok:0})}c.am[c.cw]=cur-1;if(cur-1<=0){c.rl=now+wd.rel*1000;c.rw=c.cw}r.dirty=1}
-   let dx=+b.dx||0,dz=+b.dz||0;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;const sl0=Math.max(-3,Math.min(3,+b.s||0));
+   let dx=+b.dx||0,dz=+b.dz||0;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
    const oy=ps.y+1.6,dmg=new Map(),fx=[],targets=[...r.cl].filter(([k,v])=>v!==c&&!v.dead&&v.presence&&v.inv<=now);
    if(wd.t=='melee'){
     for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,dist=Math.hypot(vx,vz);if(dist<=wd.rng&&(dist<.4||(vx*dx+vz*dz)/dist>.25)&&Math.abs(v.presence.y-ps.y)<3)dmg.set(k,(dmg.get(k)||0)+wd.dmg)}
    }else for(let n=0;n<wd.pel;n++){
-    let ax=dx,az=dz,sl=sl0;if(wd.spr){sl+=(Math.random()-.5)*wd.spr*Math.PI/180;const a=(Math.random()-.5)*wd.spr*Math.PI/180;ax=dx*Math.cos(a)-dz*Math.sin(a);az=dx*Math.sin(a)+dz*Math.cos(a)}
-    let bt=wd.rng;for(const o of pv.occ){const t=rayBox3(ps.x,oy,ps.z,ax,az,sl,o);if(t!=null&&t<bt)bt=t}
-    let best=null;for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,t=vx*ax+vz*az;if(t>0&&t<bt&&Math.abs(vx*az-vz*ax)<.9&&(oy+sl*t)>=v.presence.y-.3&&(oy+sl*t)<=v.presence.y+3.5){best=k;bt=t}}
+    let ax=dx,az=dz;if(wd.spr){const a=(Math.random()-.5)*wd.spr*Math.PI/180;ax=dx*Math.cos(a)-dz*Math.sin(a);az=dx*Math.sin(a)+dz*Math.cos(a)}
+    let bt=wd.rng;for(const o of pv.occ){const t=rayBox(ps.x,oy,ps.z,ax,az,o);if(t!=null&&t<bt)bt=t}
+    let best=null;for(const[k,v]of targets){const vx=v.presence.x-ps.x,vz=v.presence.z-ps.z,t=vx*ax+vz*az;if(t>0&&t<bt&&Math.abs(vx*az-vz*ax)<.9&&oy>=v.presence.y-.3&&oy<=v.presence.y+3.5){best=k;bt=t}}
     if(best)dmg.set(best,(dmg.get(best)||0)+wd.dmg);
-    fx.push({f:[+ps.x.toFixed(1),+oy.toFixed(1),+ps.z.toFixed(1)],t:[+(ps.x+ax*bt).toFixed(1),+(oy+sl*bt).toFixed(1),+(ps.z+az*bt).toFixed(1)]});
+    fx.push({f:[+ps.x.toFixed(1),+oy.toFixed(1),+ps.z.toFixed(1)],t:[+(ps.x+ax*bt).toFixed(1),+oy.toFixed(1),+(ps.z+az*bt).toFixed(1)]});
    }
    if(fx.length)bc(r,{t:'fx',peer:String(b.peer),w:fx});
    for(const[k,d]of dmg){const v=r.cl.get(k);v.hp-=d;bc(r,{t:'hit',target:k,by:String(b.peer)});
@@ -396,5 +314,5 @@ setInterval(()=>{for(const r of Object.values(rooms))for(const c of r.cl.values(
   if(!had&&fileData){Object.assign(D,fileData);D.likes=D.likes||{};dirty=1;console.log('Redis was empty: copying the local data file into it.')}
   else console.log(had?'Loaded all data from Redis.':'Redis is empty: starting fresh.');
  }else{if(fileData)Object.assign(D,fileData);console.log('No Redis configured: saving to a local file (lost if the host resets its disk).')}
- seedAdmin();seedBuiltins();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
+ seedAdmin();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
 })();
