@@ -92,3 +92,8 @@ Profile pages have an Add friend / Message button for players who aren't you.
 ## Up to 3 accessories
 Players can now equip one item per slot — Head, Face, and Back — for up to 3 accessories worn at once, alongside a separate t-shirt graphic.
 The Avatar page is reorganized into clearly labeled sections (Body, Clothes, Accessories) with each accessory slot shown as its own row.
+
+## Code organization
+The code is now split into `server.js` (backend) and ~16 files under `public/js/`, loaded in order from
+`public/index.html`. See INDEX.md for what's in each file and an important caveat about duplicate function
+definitions left over from the project's history (the last-loaded copy of a function is the live one).
