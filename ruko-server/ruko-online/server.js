@@ -46,6 +46,8 @@ async function flush(){
 setInterval(flush,4000);
 process.on('SIGTERM',async()=>{dirty=1;busy=0;try{await flush()}catch(e){}process.exit(0)});
 const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
+const JSDIR=path.join(__dirname,'public','js');
+const JSFILES={};for(const f of fs.readdirSync(JSDIR))if(f.endsWith('.js'))JSFILES[f]=fs.readFileSync(path.join(JSDIR,f));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
 const rnd=n=>crypto.randomBytes(n).toString('hex');
 // The built-in games are ordinary games owned by Ruko (so the owner can edit or delete them). They are created once, and stay deleted if the owner deletes them.
@@ -119,6 +121,7 @@ const room=id=>{if(rooms[id])return rooms[id];const gid=id.slice(3).replace(/x\d
  return rooms[id]=r};
 const server=http.createServer(async(req,res)=>{
  const p=new URL(req.url,'http://x').pathname;
+ if(p.startsWith('/js/')){const f=p.slice(4);if(!JSFILES[f]){res.writeHead(404);return res.end()}res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','cache-control':'public, max-age=3600'});return res.end(JSFILES[f])}
  if(!p.startsWith('/api/')){res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(INDEX)}
  let b={};if(req.method=='POST'){try{b=JSON.parse(await body(req)||'{}')}catch(e){return send(res,400,{error:'Bad request'})}}
  const me=who(req),need=()=>send(res,401,{error:'Please log in again.'});
