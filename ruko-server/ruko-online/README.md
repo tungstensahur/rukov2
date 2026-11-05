@@ -88,3 +88,7 @@ game and 300 blocks total, are saved and loaded with the rest of the level.
 Friends and Messages tabs let players add each other as friends (by username, with accept/decline, and instant matching if both
 send a request) and send each other private messages. Only friends can message each other (the Ruko account can message anyone).
 Profile pages have an Add friend / Message button for players who aren't you.
+
+## Up to 3 accessories
+Players can now equip one item per slot — Head, Face, and Back — for up to 3 accessories worn at once, alongside a separate t-shirt graphic.
+The Avatar page is reorganized into clearly labeled sections (Body, Clothes, Accessories) with each accessory slot shown as its own row.

@@ -97,7 +97,7 @@ const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.pr
 const ammoOf=(r,c)=>{const w=r.pv.wd[c.cw];return w&&w.mag>0?(c.am[c.cw]!=null?c.am[c.cw]:w.mag):-1};
 function rayBox3(ox,oy,oz,dx,dz,sl,b){let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}if(t0<=0)return null;const h0=oy+sl*t0,h1=oy+sl*t1,lo=Math.min(h0,h1),hi=Math.max(h0,h1);return hi<b.y0||lo>b.y1?null:t0}
 function rayBox(ox,oy,oz,dx,dz,b){if(oy<b.y0||oy>b.y1)return null;let t0=0,t1=1e9;for(const[o,d,a,z]of[[ox,dx,b.x0,b.x1],[oz,dz,b.z0,b.z1]]){if(Math.abs(d)<1e-9){if(o<a||o>z)return null}else{let s=(a-o)/d,e=(z-o)/d;if(s>e){const q=s;s=e;e=q}t0=Math.max(t0,s);t1=Math.min(t1,e);if(t0>t1)return null}}return t0>0?t0:null}
-const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,worn:u.worn,av:u.av,admin:!!u.admin,mod:!!u.mod,ernSales:u.ernSales||0,ernVisits:u.ernVisits||0,log:(u.log||[]).slice(-10),bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
+const pubUser=u=>({name:u.name,coins:u.coins,owned:u.owned,gear:u.gear||{},av:u.av,admin:!!u.admin,mod:!!u.mod,ernSales:u.ernSales||0,ernVisits:u.ernVisits||0,log:(u.log||[]).slice(-10),bio:u.bio||'',joined:u.joined||0,pend:(u.admin||u.mod)?D.hats.filter(h=>h.status==='pending').length:undefined});
 const hashPw=(p,s)=>crypto.scryptSync(p,s,32).toString('hex');
 const clamp=(v,a,b,d)=>Math.max(a,Math.min(b,Number.isFinite(+v)?+v:d));
 const col=c=>/^#[0-9a-fA-F]{6}$/.test(c)?c:'#888888';
@@ -136,7 +136,9 @@ const server=http.createServer(async(req,res)=>{
   }else{const x=D.users[k];if(!x||hashPw(pw,x.salt)!==x.hash)return send(res,400,{error:'Wrong username or password.'});if(x.banned)return send(res,403,{error:'This account is banned.'})}
   const t=rnd(24);D.sessions[t]=k;save();return send(res,200,{token:t,me:pubUser(D.users[k])});
  }
- if(p=='/api/me'){if(!me)return need();if(req.method=='POST'){if(b.av){const a=av(b.av);if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;me.av=a}if(typeof b.bio=='string')me.bio=b.bio.replace(/\s+/g,' ').trim().slice(0,160);if(b.worn===null||me.owned.includes(b.worn))me.worn=b.worn;save()}return send(res,200,{me:pubUser(me)})}
+ if(p=='/api/me'){if(!me)return need();if(req.method=='POST'){if(b.av){const a=av(b.av);if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;me.av=a}if(typeof b.bio=='string')me.bio=b.bio.replace(/\s+/g,' ').trim().slice(0,160);
+  if(b.gear&&typeof b.gear=='object'){const ng={};for(const slot of['head','face','back']){const id=b.gear[slot];if(id==null)continue;if(!me.owned.includes(id))continue;const h=D.hats.find(x=>x.id==id),hs=h?(h.slot||'head'):'head';if(hs!==slot)continue;ng[slot]=id}me.gear=ng}
+  save()}return send(res,200,{me:pubUser(me)})}
  if(p=='/api/hats'){
   if(req.method=='GET'){const lk={};for(const id in D.likes)lk[id]=D.likes[id].length;return send(res,200,{hats:D.hats.filter(h=>h.status!=='pending'&&h.status!=='rejected'),mine:me?D.hats.filter(h=>h.creator===me.name&&(h.status==='pending'||h.status==='rejected')):[],sales:D.sales,meta:D.meta,likes:lk,liked:me?Object.keys(D.likes).filter(id=>D.likes[id].includes(me.name)):[]})}
   if(!me)return need();
@@ -175,7 +177,7 @@ const server=http.createServer(async(req,res)=>{
   const u=D.users[String(new URL(req.url,'http://x').searchParams.get('name')||'').toLowerCase()];
   if(!u||(u.banned&&!me.admin))return send(res,404,{error:'No such player.'});
   let playing=null;for(const id in rooms)for(const c of rooms[id].cl.values())if(c.name===u.name)playing=id.slice(3);
-  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,friend:me?(D.friends[me.name]||[]).includes(u.name):false,joined:u.joined||0,bio:u.bio||'',av:u.av,worn:u.worn,owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
+  return send(res,200,{p:{name:u.name,admin:!!u.admin,mod:!!u.mod,friend:me?(D.friends[me.name]||[]).includes(u.name):false,joined:u.joined||0,bio:u.bio||'',av:u.av,gear:u.gear||{},owned:u.owned,online:(seen.get(u.name)||0)>Date.now()-120000,playing}});
  }
  if(p=='/api/players'){
   if(!me)return need();
@@ -321,7 +323,7 @@ const server=http.createServer(async(req,res)=>{
   if(b.all){const n=clamp(b.coins,-1e6,1e6,0)|0;for(const u of Object.values(D.users))u.coins=Math.max(0,u.coins+n);save();return send(res,200,{ok:1})}
   const u=D.users[String(b.user||'').toLowerCase()];if(!u)return send(res,404,{error:'No such player.'});
   if(b.coins!=null)u.coins=Math.max(0,u.coins+(clamp(b.coins,-1e6,1e6,0)|0));
-  if(b.hat){const id=String(b.hat);if(!(id in PRICE)&&!D.hats.some(h=>h.id==id))return send(res,404,{error:'No such item.'});const i=u.owned.indexOf(id);if(b.take){if(i>=0)u.owned.splice(i,1);if(u.worn==id)u.worn=null}else if(i<0)u.owned.push(id)}
+  if(b.hat){const id=String(b.hat);if(!(id in PRICE)&&!D.hats.some(h=>h.id==id))return send(res,404,{error:'No such item.'});const i=u.owned.indexOf(id);if(b.take){if(i>=0)u.owned.splice(i,1);if(u.gear)for(const slot in u.gear)if(u.gear[slot]==id)delete u.gear[slot]}else if(i<0)u.owned.push(id)}
   if(b.ban!=null&&!u.admin)u.banned=!!b.ban;
   if(b.mute!=null&&!u.admin&&(OWN||!u.mod))u.muted=!!b.mute;
   if(b.mod!=null&&!u.admin)u.mod=!!b.mod;
@@ -380,7 +382,7 @@ const server=http.createServer(async(req,res)=>{
   if(p.endsWith('/pos')){
    const r=rooms[id],c=r&&r.cl.get(String(b.peer));if(!c||c.name!==me.name)return send(res,404,{});
    const q=b.presence||{},ps={};for(const k of ['x','y','z','r'])ps[k]=clamp(q[k],-500,500,0);
-   ps.hat=typeof q.hat=='string'?q.hat.slice(0,30):null;ps.av=av(q.av);c.presence=ps;r.dirty=1;return send(res,200,{ok:1});
+   ps.gear={};if(q.gear&&typeof q.gear=='object')for(const slot of['head','face','back'])if(typeof q.gear[slot]=='string')ps.gear[slot]=q.gear[slot].slice(0,30);ps.av=av(q.av);c.presence=ps;r.dirty=1;return send(res,200,{ok:1});
   }
  }
  send(res,404,{error:'Not found'});
