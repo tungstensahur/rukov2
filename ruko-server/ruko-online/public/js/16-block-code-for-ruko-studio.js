@@ -8,7 +8,8 @@ const HATD={start:{ic:'🚩',n:'When the game starts',f:[['t','When the game sta
  touch:{ic:'👆',n:'When a player touches…',f:[['t','When a player touches '],['o','obj']],d:{o:''}},
  timer:{ic:'⏰',n:'Every few seconds',f:[['t','Every '],['n','num',{min:.2,max:300,step:.5}],['t',' seconds']],d:{n:5}},
  action:{ic:'⚡',n:'When Action is pressed',f:[['t','When Action '],['k','sel',{o:[['1','1 (E key)'],['2','2 (Q key)']],num:1}],['t',' is pressed']],d:{k:1}},
- score:{ic:'🏆',n:'When score reaches…',f:[['t','When score reaches '],['n','num',NUM]],d:{n:10}}};
+ score:{ic:'🏆',n:'When score reaches…',f:[['t','When score reaches '],['n','num',NUM]],d:{n:10}},
+ varReach:{ic:'📦',n:'When a variable reaches…',f:[['t','When '],['v','sel',{o:[['A','A'],['B','B'],['C','C']]}],['o','sel',{o:[['>','reaches at least'],['<','drops to at most']]}],['n','num',NUM]],d:{v:'A',o:'>',n:10}}};
 const BLK={
  say:{c:'looks',ic:'💬',n:'Say a message',f:[['t','Say '],['m','text',{ph:'Hello!'}],['t',' for '],['s','num',{min:0,max:30,step:.5}],['t',' sec']],d:{m:'Hello!',s:2}},
  sky:{c:'looks',ic:'🌤',n:'Set sky color',f:[['t','Set sky color to '],['c','col']],d:{c:'#ff9966'}},
@@ -26,8 +27,14 @@ const BLK={
  var:{c:'vars',ic:'📦',n:'Change a variable',f:[['t','Variable '],['v','sel',{o:[['A','A'],['B','B'],['C','C']]}],['op','sel',{o:[['add','changes by'],['set','is set to']]}],['n','num',NUM]],d:{v:'A',op:'add',n:1}},
  show:{c:'objects',ic:'👁',n:'Show or hide',f:[['on','sel',{o:[['show','Show'],['hide','Hide']]}],['o','obj']],d:{on:'hide',o:''}},
  color:{c:'objects',ic:'🎨',n:'Change color',f:[['t','Set color of '],['o','obj'],['t',' to '],['c','col']],d:{o:'',c:'#ff4b4b'}},
- move:{c:'objects',ic:'↔️',n:'Move an object',f:[['t','Move '],['o','obj'],['t',' by x'],['x','num',NUM],['t',' y'],['y','num',NUM],['t',' z'],['z','num',NUM],['t',' over '],['s','num',{min:0,max:30,step:.5}],['t',' sec']],d:{o:'',x:0,y:4,z:0,s:1}}};
-const CATS=[['looks','Looks','#9b59b6'],['sound','Sound','#d94f8f'],['control','Control','#e6a118'],['player','Player','#3b82f6'],['objects','Objects','#2fb07a'],['vars','Score and variables','#e5484d']];
+ move:{c:'objects',ic:'↔️',n:'Move an object',f:[['t','Move '],['o','obj'],['t',' by x'],['x','num',NUM],['t',' y'],['y','num',NUM],['t',' z'],['z','num',NUM],['t',' over '],['s','num',{min:0,max:30,step:.5}],['t',' sec']],d:{o:'',x:0,y:4,z:0,s:1}},
+ warp:{c:'objects',ic:'🌀',n:'Teleport an object',f:b=>[['t','Teleport '],['o','obj'],['t',' to ']].concat(b.w=='obj'?[['to','obj']]:[['t','x'],['x','num',NUM],['t','y'],['y','num',NUM],['t','z'],['z','num',NUM]]).concat([['w','sel',{o:[['pos','a position'],['obj','another object']]}]]),d:{o:'',w:'pos',to:'',x:0,y:0,z:0}},
+ burst:{c:'fx',ic:'✨',n:'Particle burst',f:[['t','Burst at '],['o','obj'],['t',' color '],['c','col']],d:{o:'',c:'#ffd23f'}},
+ broadcast:{c:'fx',ic:'📣',n:'Announce in chat',f:[['t','Announce '],['m','text',{ph:'Something happened!'}]],d:{m:'Something happened!'}},
+ heal:{c:'player',ic:'❤️',n:'Heal player (PVP games)',f:[['t','Heal player by '],['n','num',{min:1,max:500,step:5}],['t',' HP']],d:{n:25}},
+ hurt:{c:'player',ic:'💢',n:'Damage player (PVP games)',f:[['t','Damage player by '],['n','num',{min:1,max:500,step:5}],['t',' HP']],d:{n:25}},
+ randvar:{c:'vars',ic:'🎲',n:'Random number into score/variable',f:[['t','Set '],['v','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}],['t',' to a random number from '],['a','num',NUM],['t',' to '],['b','num',NUM]],d:{v:'score',a:1,b:10}}};
+const CATS=[['looks','Looks','#9b59b6'],['sound','Sound','#d94f8f'],['fx','Effects','#ff8c42'],['control','Control','#e6a118'],['player','Player','#3b82f6'],['objects','Objects','#2fb07a'],['vars','Score and variables','#e5484d']];
 const catCol=c=>(CATS.find(x=>x[0]==c)||[0,0,'#888'])[2];
 const clone=o=>JSON.parse(JSON.stringify(o));
 const mkBlock=t=>({t,...clone(BLK[t].d)});
