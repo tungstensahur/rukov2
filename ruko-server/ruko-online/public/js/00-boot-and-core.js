@@ -92,6 +92,7 @@ function aim(){const P=camPose(),ax=P.x+P.fx*45-p.x,ay=P.y+P.fy*45-(p.y+1.6),az=
 const SCR=g.scripts||[],ph={spd:g.spd||7,jmp:g.jmp||9,grav:g.grav||22},SV={score:0,A:0,B:0,C:0},tws=[],runs=[],hasScr=SCR.length>0,scUses=hasScr&&JSON.stringify(SCR).indexOf('score')>=0;let pa1=false,pa2=false,aud=null,sayT=0;
 SCR.forEach(s=>{s.st={run:false,tn:0,fired:false,touching:false,cool:0,started:false}});
 if(hasScr)$('#acts').classList.toggle('on',SCR.some(s=>s.h&&s.h.t=='action'))
+function burst(c,col){const n=10;for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.18),new THREE.MeshBasicMaterial({color:col||'#ffd23f'}));m.position.set(c.x,c.y,c.z);S.add(m);const a=Math.random()*6.28,sp2=1.5+Math.random()*2.5,vy=2+Math.random()*2.5,t0=performance.now();const step=()=>{const dt2=(performance.now()-t0)/1000;if(dt2>1){S.remove(m);m.geometry.dispose();m.material.dispose();return}m.position.set(c.x+Math.cos(a)*sp2*dt2,c.y+vy*dt2-4*dt2*dt2,c.z+Math.sin(a)*sp2*dt2);m.material.opacity=1-dt2;m.material.transparent=true;requestAnimationFrame(step)};requestAnimationFrame(step)}}
 const beep=k=>{try{aud=aud||new(window.AudioContext||window.webkitAudioContext)();const a=aud,o=a.createOscillator(),gn=a.createGain(),P={beep:[660,.12,'square'],coin:[988,.18,'sine'],jump:[440,.15,'triangle'],boom:[90,.4,'sawtooth'],win:[784,.4,'sine'],hurt:[180,.25,'square']}[k]||[660,.12,'square'];o.type=P[2];o.frequency.setValueAtTime(P[0],a.currentTime);if(k=='coin'||k=='win')o.frequency.setValueAtTime(P[0]*1.5,a.currentTime+.08);if(k=='boom'||k=='hurt')o.frequency.exponentialRampToValueAtTime(40,a.currentTime+P[1]);gn.gain.setValueAtTime(.15,a.currentTime);gn.gain.exponentialRampToValueAtTime(.001,a.currentTime+P[1]);o.connect(gn);gn.connect(a.destination);o.start();o.stop(a.currentTime+P[1])}catch(e){}};
 function sayMsg(m,s){const el=$('#gmsg');el.textContent=m;clearTimeout(sayT);sayT=setTimeout(()=>{if(el.textContent==m)el.textContent=''},Math.max(300,s*1000))}
 function entPos(e){return e.q?{x:e.q.x,y:e.q.y,z:e.q.z}:{x:e.mesh.position.x,y:e.mesh.position.y,z:e.mesh.position.z}}
@@ -109,6 +110,12 @@ function scExec(b,run,now){switch(b.t){
  case 'win':if(!done){done=1;got+=100;msg(b.m||'You won!')}break;
  case 'score':SV.score=b.op=='set'?b.n:SV.score+b.n;break;
  case 'var':SV[b.v]=b.op=='set'?b.n:SV[b.v]+b.n;break;
+ case 'randvar':{const lo=Math.min(b.a,b.b),hi=Math.max(b.a,b.b),v=Math.round(lo+Math.random()*(hi-lo));if(b.v=='score')SV.score=v;else SV[b.v]=v;break}
+ case 'heal':if(typeof ST!=='undefined'&&pvp&&!ST.dead){ST.hp=Math.min(ST.mx,ST.hp+b.n);hud()}break;
+ case 'hurt':if(typeof ST!=='undefined'&&pvp&&!ST.dead){ST.hp=Math.max(0,ST.hp-b.n);hud();if(ST.hp<=0){ST.dead=true;rsp();ST.hp=ST.mx;hud()}}break;
+ case 'warp':{const e=ent[b.o];if(e){const c=b.w=='obj'?entPos(ent[b.to]||{}):{x:b.x,y:b.y,z:b.z};if(c&&(c.x!=null))moveEnt(e,c.x-entPos(e).x,c.y-entPos(e).y,c.z-entPos(e).z)}break}
+ case 'burst':{const e=ent[b.o],c=e?entPos(e):{x:p.x,y:p.y+1,z:p.z};burst(c,b.c);break}
+ case 'broadcast':{const L=document.createElement('div');L.innerHTML='<b>📣</b> '+esc(b.m);$('#cbox').append(L);while($('#cbox').children.length>8)$('#cbox').firstChild.remove();setTimeout(()=>L.remove(),9000);break}
  case 'phys':ph[b.k=='speed'?'spd':b.k=='jump'?'jmp':'grav']=b.n;break;
  case 'show':{const e=ent[b.o];if(e)setVis(e,b.on!='hide');break}
  case 'color':{const e=ent[b.o];if(e&&e.mesh.material&&e.mesh.material.color)e.mesh.material.color.set(b.c);break}
@@ -128,6 +135,7 @@ function SCtick(t,dt){for(let i=tws.length-1;i>=0;i--){const w=tws[i],k=Math.min
   if(h.t=='start'){if(!st.started){st.started=true;scTrig(s)}}
   else if(h.t=='timer'){if(!st.tn)st.tn=t+h.n*1000;if(t>=st.tn){st.tn=t+h.n*1000;scTrig(s)}}
   else if(h.t=='score'){if(SV.score>=h.n){if(!st.fired){st.fired=true;scTrig(s)}}else st.fired=false}
+  else if(h.t=='varReach'){const v=SV[h.v]||0,ok=h.o=='<'?v<=h.n:v>=h.n;if(ok){if(!st.fired){st.fired=true;scTrig(s)}}else st.fired=false}
   else if(h.t=='touch'){const e=ent[h.o];if(e&&!(e.q?e.q.hid:!e.mesh.visible)){const tc=scTouch(e);if(tc&&!st.touching&&t>st.cool){st.cool=t+300;scTrig(s)}st.touching=tc}}});
  for(let i=runs.length-1;i>=0;i--){scStep(runs[i],t);if(runs[i].done){runs[i].s.st.run=false;runs.splice(i,1)}}}
 const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000);t0=t;

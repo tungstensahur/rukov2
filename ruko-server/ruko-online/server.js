@@ -77,14 +77,20 @@ function sBlocks(list,d){if(!Array.isArray(list)||d>5)return[];const out=[];for(
   case 'phys':{const k=['speed','jump','gravity'].includes(b.k)?b.k:'speed',R={speed:[2,40,7],jump:[3,40,9],gravity:[3,80,22]}[k];r={t,k,n:clamp(b.n,R[0],R[1],R[2])};break}
   case 'show':r={t,o:sUid(b.o),on:b.on=='hide'?'hide':'show'};break;
   case 'color':r={t,o:sUid(b.o),c:col(b.c)};break;
-  case 'move':r={t,o:sUid(b.o),x:clamp(b.x,-200,200,0),y:clamp(b.y,-200,200,0),z:clamp(b.z,-200,200,0),s:clamp(b.s,0,30,1)};break;
+ case 'move':r={t,o:sUid(b.o),x:clamp(b.x,-200,200,0),y:clamp(b.y,-200,200,0),z:clamp(b.z,-200,200,0),s:clamp(b.s,0,30,1)};break;
+  case 'warp':r={t,o:sUid(b.o),w:b.w=='obj'?'obj':'pos',to:sUid(b.to),x:clamp(b.x,-300,300,0),y:clamp(b.y,-30,300,0),z:clamp(b.z,-300,300,0)};break;
+  case 'burst':r={t,o:sUid(b.o),c:col(b.c)};break;
+  case 'broadcast':r={t,m:sStr(b.m,120)};break;
+  case 'heal':r={t,n:clamp(b.n,1,500,25)|0};break;
+  case 'hurt':r={t,n:clamp(b.n,1,500,25)|0};break;
+  case 'randvar':r={t,v:['score','A','B','C'].includes(b.v)?b.v:'score',a:clamp(b.a,-99999,99999,1),b:clamp(b.b,-99999,99999,10)};break;
   case 'sky':r={t,c:col(b.c)};break;
   case 'rep':r={t,n:clamp(b.n,1,100,3)|0,b:sBlocks(b.b,d+1)};break;
   case 'forever':r={t,b:sBlocks(b.b,d+1)};break;
   case 'if':r={t,c:sCond(b.c),y:sBlocks(b.y,d+1),n:sBlocks(b.n,d+1)};break}
  if(r){scBudget--;out.push(r)}}return out}
 function sScripts(list){scBudget=300;if(!Array.isArray(list))return[];return list.slice(0,40).map(s=>{const h=(s&&s.h)||{},t=h.t;let H=null;
- if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};
+ if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};else if(t=='varReach')H={t,v:['A','B','C'].includes(h.v)?h.v:'A',o:h.o=='<'?'<':'>',n:clamp(h.n,-99999,99999,10)};
  return H?{h:H,b:sBlocks(s.b,0)}:null}).filter(Boolean)}
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
 const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};

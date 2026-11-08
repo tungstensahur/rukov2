@@ -10,7 +10,7 @@ function hatMesh(h){const g=new THREE.Group();parts(h).forEach(p=>{const mat=p.f
 function shot(obj,cp,look){if(!TR){TR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});TR.setSize(300,300)}
  const sc=new THREE.Scene();sc.add(new THREE.AmbientLight(0xffffff,.75));const l=new THREE.DirectionalLight(0xffffff,.8);l.position.set(2,3,4);sc.add(l);sc.add(obj);
  const c=new THREE.PerspectiveCamera(40,1,.1,500);c.position.set(...cp);c.lookAt(...look);TR.render(sc,c);return TR.domElement.toDataURL()}
-function thumb(h){if(h.kind=='shirt')return '/api/shirt/'+h.id+'?v='+(h.tv||0);const k=JSON.stringify(parts(h));if(thumb.c[k])return thumb.c[k];const m=hatMesh(h);m.rotation.y=-.5;return thumb.c[k]=shot(m,[1.4,1.5,2.8],[0,.5,0])}
+function thumb(h){if(h.kind=='shirt')return '/api/shirt/'+h.id+'?v='+(h.tv||0);const k=JSON.stringify(parts(h));if(thumb.c[k])return thumb.c[k];const m=hatMesh(h);m.rotation.y=-.5;return thumb.c[k]=shot(m,[1.4,1.5,2.8],[0,.5,0])}thumb.c={};
 function faceTex(c,f){const k=document.createElement('canvas');k.width=k.height=64;const x=k.getContext('2d');x.fillStyle=c;x.fillRect(0,0,64,64);x.fillStyle=x.strokeStyle='#222';x.lineWidth=4;x.lineCap='round';
  if(f==2){x.beginPath();x.arc(22,26,4,0,7);x.fill();x.beginPath();x.arc(42,26,4,0,7);x.fill();x.beginPath();x.arc(32,46,6,0,7);x.fill()}
  else if(f==3){x.fillRect(16,24,14,4);x.fillRect(34,24,14,4);x.beginPath();x.moveTo(22,48);x.lineTo(42,48);x.stroke()}
