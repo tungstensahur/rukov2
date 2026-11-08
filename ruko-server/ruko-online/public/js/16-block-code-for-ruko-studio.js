@@ -3,12 +3,13 @@ let CODEP=null,CF2={f:'all'};
 const nuid=()=>'o'+Math.random().toString(36).slice(2,8);
 const labelOf=(o,i)=>(o.nm||(o.k=='p'?(TYPEINFO[o.t]||TYPEINFO.solid)[1]:o.k=='c'?'Coin':o.k=='s'?'Spawn':o.k=='w'?'Weapon':'Decoration'))+' '+i;
 const NUM={min:-9999,max:9999,step:1};
-const condF=c=>{c=c||{};return[['c.v','sel',{o:[['score','score'],['A','variable A'],['B','variable B'],['C','variable C'],['y','player height'],['time','seconds played'],['coins','coins'],['chance','random chance']]}]].concat(c.v=='chance'?[['t',' is under '],['c.n','num',{min:0,max:100,step:5}],['t','%']]:[['c.o','sel',{o:[['>','is more than'],['<','is less than'],['=','is equal to']]}],['c.n','num',NUM]])};
+const condF=c=>{c=c||{};return[['c.v','sel',{o:[['score','score'],['A','variable A'],['B','variable B'],['C','variable C'],['y','player height'],['time','seconds played'],['coins','coins'],['chance','random chance']]}]].concat(c.v=='chance'?[['t',' is under '],['c.n','num',{min:0,max:100,step:5}],['t','%']]:[['c.o','sel',{o:[['>','is more than'],['<','is less than'],['=','is equal to']]}],['c.v2','sel',{o:[['','a fixed number'],['score','score'],['A','variable A'],['B','variable B'],['C','variable C']]}]].concat(c.v2?[]:[['c.n','num',NUM]]))};
 const HATD={start:{ic:'🚩',n:'When the game starts',f:[['t','When the game starts']],d:{}},
  touch:{ic:'👆',n:'When a player touches…',f:[['t','When a player touches '],['o','obj']],d:{o:''}},
  timer:{ic:'⏰',n:'Every few seconds',f:[['t','Every '],['n','num',{min:.2,max:300,step:.5}],['t',' seconds']],d:{n:5}},
  action:{ic:'⚡',n:'When Action is pressed',f:[['t','When Action '],['k','sel',{o:[['1','1 (E key)'],['2','2 (Q key)']],num:1}],['t',' is pressed']],d:{k:1}},
  score:{ic:'🏆',n:'When score reaches…',f:[['t','When score reaches '],['n','num',NUM]],d:{n:10}},
+ chatCmd:{ic:'💬',n:'When player types a chat command…',f:[['t','When player types '],['m','text',{ph:'!help'}],['t',' in server chat']],d:{m:'!help'}},
  varReach:{ic:'📦',n:'When a variable reaches…',f:[['t','When '],['v','sel',{o:[['A','A'],['B','B'],['C','C']]}],['o','sel',{o:[['>','reaches at least'],['<','drops to at most']]}],['n','num',NUM]],d:{v:'A',o:'>',n:10}}};
 const BLK={
  say:{c:'looks',ic:'💬',n:'Say a message',f:[['t','Say '],['m','text',{ph:'Hello!'}],['t',' for '],['s','num',{min:0,max:30,step:.5}],['t',' sec']],d:{m:'Hello!',s:2}},
@@ -33,7 +34,11 @@ const BLK={
  broadcast:{c:'fx',ic:'📣',n:'Announce in chat',f:[['t','Announce '],['m','text',{ph:'Something happened!'}]],d:{m:'Something happened!'}},
  heal:{c:'player',ic:'❤️',n:'Heal player (PVP games)',f:[['t','Heal player by '],['n','num',{min:1,max:500,step:5}],['t',' HP']],d:{n:25}},
  hurt:{c:'player',ic:'💢',n:'Damage player (PVP games)',f:[['t','Damage player by '],['n','num',{min:1,max:500,step:5}],['t',' HP']],d:{n:25}},
- randvar:{c:'vars',ic:'🎲',n:'Random number into score/variable',f:[['t','Set '],['v','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}],['t',' to a random number from '],['a','num',NUM],['t',' to '],['b','num',NUM]],d:{v:'score',a:1,b:10}}};
+ randvar:{c:'vars',ic:'🎲',n:'Random number into score/variable',f:[['t','Set '],['v','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}],['t',' to a random number from '],['a','num',NUM],['t',' to '],['b','num',NUM]],d:{v:'score',a:1,b:10}},
+ mathvar:{c:'vars',ic:'🧮',n:'Combine two values into score/variable',f:[['t','Set '],['v','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}],['t',' to '],['a','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}],['op','sel',{o:[['add','+'],['sub','−'],['mul','×'],['div','÷']]}],['b','sel',{o:[['score','score'],['A','A'],['B','B'],['C','C']]}]],d:{v:'score',a:'score',op:'add',b:'A'}},
+ waitUntil:{c:'control',ic:'⏳',n:'Wait until…',f:b=>[['t','Wait until ']].concat(condF(b.c)),d:{c:{v:'score',o:'>',n:5}}},
+ clone:{c:'objects',ic:'🧬',n:'Spawn a copy near an object',f:[['t','Spawn a '],['kind','sel',{o:[['coin','coin (pick-up-able)'],['deco','copy']]}],['t',' near '],['o','obj'],['t',' offset x'],['x','num',NUM],['t','y'],['y','num',NUM],['t','z'],['z','num',NUM],['t',', gone after '],['life','num',{min:0,max:120,step:1}],['t',' sec (0 = stays)']],d:{kind:'coin',o:'',x:0,y:0,z:0,life:0}},
+ spin:{c:'objects',ic:'🌀',n:'Spin an object',f:[['t','Spin '],['o','obj'],['t',' at '],['deg','num',{min:-720,max:720,step:10}],['t',' deg/sec (0 = stop)']],d:{o:'',deg:90}}};
 const CATS=[['looks','Looks','#9b59b6'],['sound','Sound','#d94f8f'],['fx','Effects','#ff8c42'],['control','Control','#e6a118'],['player','Player','#3b82f6'],['objects','Objects','#2fb07a'],['vars','Score and variables','#e5484d']];
 const catCol=c=>(CATS.find(x=>x[0]==c)||[0,0,'#888'])[2];
 const clone=o=>JSON.parse(JSON.stringify(o));

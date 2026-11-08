@@ -62,7 +62,7 @@ function seedBuiltins(){const rm=D.meta.__removed||{};let n=0;for(const b of BUI
 
 // Block code: scripts are plain data (never executed as code on the server or client). Everything is whitelisted and clamped here.
 const sStr=(v,n)=>String(v==null?'':v).slice(0,n),sUid=v=>/^[\w-]{1,10}$/.test(String(v))?String(v):'';
-const sCond=c=>{c=c||{};const v=['score','A','B','C','y','time','coins','chance'].includes(c.v)?c.v:'score';return{v,o:['>','<','='].includes(c.o)?c.o:'>',n:clamp(c.n,-99999,99999,0)}};
+const sCond=c=>{c=c||{};const v=['score','A','B','C','y','time','coins','chance'].includes(c.v)?c.v:'score',v2=['score','A','B','C'].includes(c.v2)?c.v2:undefined;const r={v,o:['>','<','='].includes(c.o)?c.o:'>'};if(v2)r.v2=v2;else r.n=clamp(c.n,-99999,99999,0);return r};
 let scBudget=0;
 function sBlocks(list,d){if(!Array.isArray(list)||d>5)return[];const out=[];for(const b of list.slice(0,80)){if(!b||scBudget<=0)break;const t=b.t;let r=null;
  switch(t){
@@ -84,13 +84,17 @@ function sBlocks(list,d){if(!Array.isArray(list)||d>5)return[];const out=[];for(
   case 'heal':r={t,n:clamp(b.n,1,500,25)|0};break;
   case 'hurt':r={t,n:clamp(b.n,1,500,25)|0};break;
   case 'randvar':r={t,v:['score','A','B','C'].includes(b.v)?b.v:'score',a:clamp(b.a,-99999,99999,1),b:clamp(b.b,-99999,99999,10)};break;
+  case 'mathvar':r={t,v:['score','A','B','C'].includes(b.v)?b.v:'score',a:['score','A','B','C'].includes(b.a)?b.a:'score',op:['add','sub','mul','div'].includes(b.op)?b.op:'add',b:['score','A','B','C'].includes(b.b)?b.b:'A'};break;
+  case 'waitUntil':r={t,c:sCond(b.c)};break;
+  case 'clone':r={t,o:sUid(b.o),kind:b.kind=='deco'?'deco':'coin',x:clamp(b.x,-60,60,0),y:clamp(b.y,-30,30,0),z:clamp(b.z,-60,60,0),life:clamp(b.life,0,120,0)};break;
+  case 'spin':r={t,o:sUid(b.o),deg:clamp(b.deg,-720,720,0)};break;
   case 'sky':r={t,c:col(b.c)};break;
   case 'rep':r={t,n:clamp(b.n,1,100,3)|0,b:sBlocks(b.b,d+1)};break;
   case 'forever':r={t,b:sBlocks(b.b,d+1)};break;
   case 'if':r={t,c:sCond(b.c),y:sBlocks(b.y,d+1),n:sBlocks(b.n,d+1)};break}
  if(r){scBudget--;out.push(r)}}return out}
 function sScripts(list){scBudget=300;if(!Array.isArray(list))return[];return list.slice(0,40).map(s=>{const h=(s&&s.h)||{},t=h.t;let H=null;
- if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};else if(t=='varReach')H={t,v:['A','B','C'].includes(h.v)?h.v:'A',o:h.o=='<'?'<':'>',n:clamp(h.n,-99999,99999,10)};
+ if(t=='start')H={t};else if(t=='touch')H={t,o:sUid(h.o)};else if(t=='timer')H={t,n:clamp(h.n,.2,300,5)};else if(t=='action')H={t,k:+h.k==2?2:1};else if(t=='score')H={t,n:clamp(h.n,-99999,99999,10)};else if(t=='varReach')H={t,v:['A','B','C'].includes(h.v)?h.v:'A',o:h.o=='<'?'<':'>',n:clamp(h.n,-99999,99999,10)};else if(t=='chatCmd')H={t,m:sStr(h.m,30)};
  return H?{h:H,b:sBlocks(s.b,0)}:null}).filter(Boolean)}
 const bc=(r,o)=>{const m='data: '+JSON.stringify({ev:o})+'\n\n';for(const x of r.cl.values())x.res.write(m)};
 const DEFNAME={r1:'Ruko Cap',r2:'Top Hat',r3:'Wizard Hat',r4:'Golden Halo',r5:'Party Cone',r6:'Crate Head'};

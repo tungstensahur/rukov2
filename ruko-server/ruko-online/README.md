@@ -97,3 +97,9 @@ The Avatar page is reorganized into clearly labeled sections (Body, Clothes, Acc
 The code is now split into `server.js` (backend) and ~16 files under `public/js/`, loaded in order from
 `public/index.html`. See INDEX.md for what's in each file and an important caveat about duplicate function
 definitions left over from the project's history (the last-loaded copy of a function is the live one).
+
+## Advanced block code
+New in the Code tab: compare score/variables against each other (not just fixed numbers), a "Wait until" block that pauses a script
+until a condition becomes true, a math block that combines two values (+ − × ÷) into score or a variable, a "spawn a copy" block
+(coins are pick-up-able, copies are just visual) with an optional lifetime, a "spin" block for continuously rotating decorations,
+and a new "player types a chat command" trigger (server games only).

@@ -57,7 +57,7 @@ async function play0(g,srv){
  else{P(0,0,0,60,60,g.ground);for(let i=0;i<(g.mode=='roam'?12:6);i++)P((r()-.5)*40,.8+r()*2,(r()-.5)*40,3,3,`hsl(${r()*360},60%,60%)`);
   if(g.mode=='coins')for(let i=0;i<(g.coinN||25);i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.08,16),new THREE.MeshLambertMaterial({color:'#ffc800'}));m.rotation.x=1.57;m.position.set((r()-.5)*40,.9+r()*1.4,(r()-.5)*40);S.add(m);coins.push(m)}}
  if(spawns.length)spawn=spawns[Math.floor(Math.random()*spawns.length)];const pm=makePlayer(hat,me.av,me.name);S.add(pm);const sp0=spawn?{...spawn}:{x:0,y:0,z:0},ts=performance.now(),cv=R.domElement;let cy=0,cd=10,cp=.25,ly=0,dr=0,lx=0,ride=null,px0=0,py0=0,PVC=0;cv.onpointerdown=e=>{dr=1;lx=e.clientX;ly=e.clientY;px0=e.clientX;py0=e.clientY;cv.setPointerCapture(e.pointerId)};cv.onpointerup=e=>{dr=0;if(e&&Math.hypot(e.clientX-px0,e.clientY-py0)<6)PVC=1};cv.onpointercancel=()=>dr=0;cv.onpointermove=e=>{if(dr){cy-=(e.clientX-lx)*.008;cp=Math.max(-.35,Math.min(1.3,cp+(e.clientY-ly)*.006));lx=e.clientX;ly=e.clientY}};cv.onwheel=e=>{cd=Math.max(5,Math.min(22,cd+e.deltaY*.01))};const rem={};let rr=null,off=null,hb=0;const chatMsg=c=>{const t=c.isMe?pm:rem[c.peer]&&rem[c.peer].m,L=document.createElement('div');L.innerHTML='<b>'+esc(c.name)+'</b> '+esc(c.text);$('#cbox').append(L);while($('#cbox').children.length>8)$('#cbox').firstChild.remove();setTimeout(()=>L.remove(),14000);if(t){const k=t.userData.ct=Date.now();setTag(t,c.name,c.text);setTimeout(()=>{if(t.userData.ct==k)setTag(t,c.name,null)},6000)}};
- const sendC=()=>{const i=$('#ci'),v=i.value.trim();if(rr&&v){rr.chat(v);i.value=''}};$('#cs').onclick=sendC;$('#ci').onkeydown=e=>{if(e.key=='Enter'){sendC();$('#ci').blur()}};if(srv){setSrv(srv);if(RM)RM.join('srv'+srv).then(r=>{rr=r;r.onChat(chatMsg);r.onEvent(PVE);off=r.onPeers(c=>{PVL(c.peers);const seen={};c.peers.forEach(q=>{const s=q.presence;if(q.isMe||!s||s.x==null)return;seen[q.peer]=1;let o=rem[q.peer];const k=JSON.stringify([s.gear,s.av]);if(!o||o.k!=k){if(o)S.remove(o.m);const rg=Object.values(s.gear||{}).map(id=>hats().find(h=>h.id==id)).filter(Boolean);const m=makePlayer(rg,s.av,q.name);S.add(m);o=rem[q.peer]={m,k,t:s}}o.t=s;PVR(o,q)});Object.keys(rem).forEach(i=>{if(!seen[i]){S.remove(rem[i].m);delete rem[i]}})})}).catch(()=>{})}const p={x:sp0.x,y:sp0.y+(spawn?.5:0),z:sp0.z,vy:0};let got=0,done=0,raf,t0=performance.now();
+ const sendC=()=>{const i=$('#ci'),v=i.value.trim();if(rr&&v){rr.chat(v);if(hasScr)scChat(v);i.value=''}};$('#cs').onclick=sendC;$('#ci').onkeydown=e=>{if(e.key=='Enter'){sendC();$('#ci').blur()}};if(srv){setSrv(srv);if(RM)RM.join('srv'+srv).then(r=>{rr=r;r.onChat(chatMsg);r.onEvent(PVE);off=r.onPeers(c=>{PVL(c.peers);const seen={};c.peers.forEach(q=>{const s=q.presence;if(q.isMe||!s||s.x==null)return;seen[q.peer]=1;let o=rem[q.peer];const k=JSON.stringify([s.gear,s.av]);if(!o||o.k!=k){if(o)S.remove(o.m);const rg=Object.values(s.gear||{}).map(id=>hats().find(h=>h.id==id)).filter(Boolean);const m=makePlayer(rg,s.av,q.name);S.add(m);o=rem[q.peer]={m,k,t:s}}o.t=s;PVR(o,q)});Object.keys(rem).forEach(i=>{if(!seen[i]){S.remove(rem[i].m);delete rem[i]}})})}).catch(()=>{})}const p={x:sp0.x,y:sp0.y+(spawn?.5:0),z:sp0.z,vy:0};let got=0,done=0,raf,t0=performance.now();
  const keys={},kd=e=>{if(e.key=='Enter'&&rr){$('#ci').focus();return}if(document.activeElement&&document.activeElement.tagName=='INPUT')return;keys[e.key.toLowerCase()]=1;if(e.key==' ')e.preventDefault()},ku=e=>keys[e.key.toLowerCase()]=0;
  addEventListener('keydown',kd);addEventListener('keyup',ku);
  const msg=t=>{$('#gmsg').textContent=t;setTimeout(()=>$('#gmsg').textContent='',2500)};
@@ -100,8 +100,9 @@ function moveEnt(e,dx,dy,dz){if(e.q){const q=e.q;q.x+=dx;q.y+=dy;q.z+=dz;q.bx+=d
 function setVis(e,on){if(e.q){e.q.hid=!on;e.q.off=on?0:1;if(on)e.q.cr=0}e.mesh.visible=on}
 function scTouch(e){if(e.q){const q=e.q;return Math.abs(p.x-q.x)<q.sx/2+.45&&Math.abs(p.z-q.z)<q.sz/2+.45&&p.y<q.y+.2&&p.y+2.6>q.y-(q.th||.5)-.1}const m=e.mesh.position,o=e.o||{},r=Math.max(o.sx||0,o.sz||0)/2+1.3;return Math.hypot(m.x-p.x,m.z-p.z)<r&&m.y>p.y-.6&&m.y<p.y+3.4}
 const scVal=v=>v=='score'?SV.score:(v=='A'||v=='B'||v=='C')?SV[v]:v=='y'?p.y:v=='time'?(performance.now()-ts)/1000:v=='coins'?got:0;
-const scCond=c=>!c?false:c.v=='chance'?Math.random()*100<c.n:c.o=='>'?scVal(c.v)>c.n:c.o=='<'?scVal(c.v)<c.n:Math.abs(scVal(c.v)-c.n)<.001;
+const scCond=c=>{if(!c)return false;if(c.v=='chance')return Math.random()*100<c.n;const lhs=scVal(c.v),rhs=c.v2?scVal(c.v2):c.n;return c.o=='>'?lhs>rhs:c.o=='<'?lhs<rhs:Math.abs(lhs-rhs)<.001};
 function scExec(b,run,now){switch(b.t){
+ case 'waitUntil':run.stack.push({list:[],i:0,until:b.c});break;
  case 'say':sayMsg(b.m,b.s);run.wait=now+b.s*1000;break;
  case 'sound':beep(b.k);break;
  case 'wait':run.wait=now+b.s*1000;break;
@@ -111,11 +112,18 @@ function scExec(b,run,now){switch(b.t){
  case 'score':SV.score=b.op=='set'?b.n:SV.score+b.n;break;
  case 'var':SV[b.v]=b.op=='set'?b.n:SV[b.v]+b.n;break;
  case 'randvar':{const lo=Math.min(b.a,b.b),hi=Math.max(b.a,b.b),v=Math.round(lo+Math.random()*(hi-lo));if(b.v=='score')SV.score=v;else SV[b.v]=v;break}
+ case 'mathvar':{const x=scVal(b.a),y=scVal(b.b);let r=b.op=='sub'?x-y:b.op=='mul'?x*y:b.op=='div'?(y?x/y:0):x+y;r=Math.round(r*100)/100;if(b.v=='score')SV.score=r;else SV[b.v]=r;break}
  case 'heal':if(typeof ST!=='undefined'&&pvp&&!ST.dead){ST.hp=Math.min(ST.mx,ST.hp+b.n);hud()}break;
  case 'hurt':if(typeof ST!=='undefined'&&pvp&&!ST.dead){ST.hp=Math.max(0,ST.hp-b.n);hud();if(ST.hp<=0){ST.dead=true;rsp();ST.hp=ST.mx;hud()}}break;
  case 'warp':{const e=ent[b.o];if(e){const c=b.w=='obj'?entPos(ent[b.to]||{}):{x:b.x,y:b.y,z:b.z};if(c&&(c.x!=null))moveEnt(e,c.x-entPos(e).x,c.y-entPos(e).y,c.z-entPos(e).z)}break}
  case 'burst':{const e=ent[b.o],c=e?entPos(e):{x:p.x,y:p.y+1,z:p.z};burst(c,b.c);break}
  case 'broadcast':{const L=document.createElement('div');L.innerHTML='<b>📣</b> '+esc(b.m);$('#cbox').append(L);while($('#cbox').children.length>8)$('#cbox').firstChild.remove();setTimeout(()=>L.remove(),9000);break}
+ case 'clone':{const e=ent[b.o];if(!e)break;const c=entPos(e);const x=c.x+b.x,y=c.y+b.y,z=c.z+b.z;
+  if(b.kind=='coin'){const m=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.08,16),new THREE.MeshLambertMaterial({color:'#ffc800'}));m.rotation.x=1.5708;m.position.set(x,y,z);S.add(m);coins.push(m);
+   if(b.life>0)setTimeout(()=>{m.visible=false},b.life*1000)}
+  else{const src=e.mesh&&e.mesh.geometry?e.mesh:(e.mesh&&e.mesh.children&&e.mesh.children[0]);const geo=(src&&src.geometry)||new THREE.BoxGeometry(1,1,1),mat=(src&&src.material)||new THREE.MeshLambertMaterial({color:'#a8743a'}),m=new THREE.Mesh(geo,mat);if(e.mesh)m.scale.copy(e.mesh.scale);m.position.set(x,y,z);S.add(m);
+   if(b.life>0)setTimeout(()=>{S.remove(m)},b.life*1000)}break}
+ case 'spin':{const e=ent[b.o];if(e)e.spin=b.deg;break}
  case 'phys':ph[b.k=='speed'?'spd':b.k=='jump'?'jmp':'grav']=b.n;break;
  case 'show':{const e=ent[b.o];if(e)setVis(e,b.on!='hide');break}
  case 'color':{const e=ent[b.o];if(e&&e.mesh.material&&e.mesh.material.color)e.mesh.material.color.set(b.c);break}
@@ -126,10 +134,12 @@ function scExec(b,run,now){switch(b.t){
  case 'if':run.stack.push({list:(scCond(b.c)?b.y:b.n)||[],i:0});break;
  case 'stop':run.stack.length=0;break}}
 function scStep(run,now){let bud=120;while(bud-->0){if(run.wait>now)return;const f=run.stack[run.stack.length-1];if(!f){run.done=1;return}
+ if(f.until){if(scCond(f.until)){run.stack.pop();continue}return}
  if(f.i>=f.list.length){if(f.rep&&--f.n>0){f.i=0;continue}if(f.fe){f.i=0;return}run.stack.pop();continue}scExec(f.list[f.i++],run,now)}}
 function scTrig(s){if(!s.st.run){s.st.run=true;runs.push({stack:[{list:s.b||[],i:0}],wait:0,s})}}
 function scAct(k){SCR.forEach(s=>{if(s.h&&s.h.t=='action'&&+s.h.k==k)scTrig(s)})}
 function SCtick(t,dt){for(let i=tws.length-1;i>=0;i--){const w=tws[i],k=Math.min(1,(t-w.t0)/w.d),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2,tx=w.dx*e,ty=w.dy*e,tz=w.dz*e;moveEnt(w.e,tx-w.ax,ty-w.ay,tz-w.az);w.ax=tx;w.ay=ty;w.az=tz;if(k>=1)tws.splice(i,1)}
+ for(const k in ent){const e=ent[k];if(e.spin&&e.mesh)e.mesh.rotation.y+=e.spin*.01745*dt}
  const a1=!!(TK.ta1||keys['g']),a2=!!(TK.ta2||keys['h']);if(a1&&!pa1)scAct(1);if(a2&&!pa2)scAct(2);pa1=a1;pa2=a2;
  SCR.forEach(s=>{const h=s.h||{},st=s.st;
   if(h.t=='start'){if(!st.started){st.started=true;scTrig(s)}}
@@ -138,6 +148,7 @@ function SCtick(t,dt){for(let i=tws.length-1;i>=0;i--){const w=tws[i],k=Math.min
   else if(h.t=='varReach'){const v=SV[h.v]||0,ok=h.o=='<'?v<=h.n:v>=h.n;if(ok){if(!st.fired){st.fired=true;scTrig(s)}}else st.fired=false}
   else if(h.t=='touch'){const e=ent[h.o];if(e&&!(e.q?e.q.hid:!e.mesh.visible)){const tc=scTouch(e);if(tc&&!st.touching&&t>st.cool){st.cool=t+300;scTrig(s)}st.touching=tc}}});
  for(let i=runs.length-1;i>=0;i--){scStep(runs[i],t);if(runs[i].done){runs[i].s.st.run=false;runs.splice(i,1)}}}
+function scChat(text){const low=text.trim().toLowerCase();SCR.forEach(s=>{if(s.h&&s.h.t=='chatCmd'&&low===String(s.h.m||'').toLowerCase())scTrig(s)})}
 const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000);t0=t;
   const kb=k=>!ST.dead&&keys[k],tk=k=>!ST.dead&&TK[k],fw=kb('w')||kb('arrowup')||tk('tf'),bk=kb('s')||kb('arrowdown')||tk('tb'),lf=kb('a')||kb('arrowleft')||tk('tl'),rt=kb('d')||kb('arrowright')||tk('tr'),jp=!!(kb(' ')||tk('tj'));
   const ax=(rt?1:0)-(lf?1:0),az=(bk?1:0)-(fw?1:0),im=Math.hypot(ax,az)||1,sp=g.spd||7,ix=ax/im*sp,iz=az/im*sp,cs=Math.cos(cy),sn_=Math.sin(cy),tvx=ix*cs+iz*sn_,tvz=-ix*sn_+iz*cs,hasIn=!!(ax||az),kk=gr?(hasIn?16:20):(hasIn?5:1.2),aa=1-Math.exp(-kk*dt);
