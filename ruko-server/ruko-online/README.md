@@ -107,3 +107,8 @@ and a new "player types a chat command" trigger (server games only).
 ## Platform materials
 Platforms can now have a Material (Grass, Stone, Brick, Concrete, or None for flat color) set from Properties in Ruko Studio.
 Materials are procedurally generated textures, so no image uploads needed.
+
+## Material tiling and recoloring
+Materials now tile based on each platform's actual size instead of stretching, and the platform's Color field becomes a
+Tint color once a material is set (white = natural look, any other color multiplies over the texture). Stone was redesigned
+with irregular rock patches and crack lines instead of the old polka-dot look.

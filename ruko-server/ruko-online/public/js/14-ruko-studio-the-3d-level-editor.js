@@ -29,7 +29,7 @@ function gameEd(me){
  const world=new THREE.Group();sc.add(world);let roots=[],gz=null,bh=null;const V={yaw:.7,pitch:.6,dist:32,t:[0,0,0]};
  const kill=g=>g.traverse(m=>{if(m.geometry)m.geometry.dispose();if(m.material)(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>x.dispose())});
  const mkRoot=(o,i)=>{const g=new THREE.Group();g.userData.i=i;let m;
-  if(o.k=='p'){const th=o.th||.5,geo=new THREE.BoxGeometry(o.sx,th,o.sz);m=new THREE.Mesh(geo,matMat(o,TC(o)));g.add(m);const ed=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.35}));ed.raycast=()=>{};g.add(ed);
+  if(o.k=='p'){const th=o.th||.5,geo=new THREE.BoxGeometry(o.sx,th,o.sz);m=new THREE.Mesh(geo,matMat(o.mat,TC(o),o.sx,o.sz));g.add(m);const ed=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.35}));ed.raycast=()=>{};g.add(ed);
    if(o.mv){const d=o.mv.d,a=o.mv.a,pts=a=='x'?[[-d,0,0],[d,0,0]]:a=='z'?[[0,0,-d],[0,0,d]]:[[0,-d,0],[0,d,0]],ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(q=>new THREE.Vector3(q[0],q[1],q[2]))),new THREE.LineBasicMaterial({color:0xffffff}));ln.raycast=()=>{};g.add(ln)}}
   else if(o.k=='d'){m=new THREE.Mesh((GEO[o.shape]||GEO.box)(),new THREE.MeshLambertMaterial({color:o.c}));m.scale.set(o.sx,o.sy,o.sz);g.add(m)}
   else if(o.k=='c'){m=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.1,16),new THREE.MeshLambertMaterial({color:'#ffc800'}));m.rotation.x=1.5708;g.add(m)}
@@ -77,7 +77,7 @@ function gameEd(me){
   ${o.k=='p'?`<label>Type</label><select data-f="t">${Object.keys(TYPEINFO).map(k=>`<option value="${k}" ${k==o.t?'selected':''}>${TYPEINFO[k][1]}</option>`).join('')}</select><label>Material</label><select data-f="mat">${Object.keys(MATN).map(k=>`<option value="${k}" ${(o.mat||'none')==k?'selected':''}>${MATN[k]}</option>`).join('')}</select>`:''}
   ${o.k=='d'?`<label>Shape</label><select data-f="shape">${['box','sphere','cone','cylinder','pyramid','prism'].map(s=>`<option ${s==o.shape?'selected':''}>${s}</option>`).join('')}</select>`:''}
   ${o.k=='w'?`<label>Weapon</label><select data-f="wi">${GE.weapons.map((w,i)=>`<option value="${i}" ${i==o.wi?'selected':''}>${esc(w.n)}</option>`).join('')}</select>`:''}
-  ${o.k=='p'||o.k=='d'?`<label>Color${o.k=='p'?' (used when Material is None)':''}</label><input type="color" data-f="c" value="${o.c}"><div class="pal">${PAL.map(c=>`<button data-pal="${c}" style="background:${c}"></button>`).join('')}</div>`:''}
+  ${o.k=='p'||o.k=='d'?`<label>${o.k=='p'&&o.mat&&o.mat!='none'?'Tint color':'Color'}</label><input type="color" data-f="c" value="${o.c}"><div class="pal">${PAL.map(c=>`<button data-pal="${c}" style="background:${c}"></button>`).join('')}</div>`:''}
   <div class="stg">Position</div>${nr('x','X',ps,o.x)}${nr('y','Height',ps,o.y)}${nr('z','Z',ps,o.z)}
   ${o.k=='p'?`<div class="stg">Size</div>${nr('sx','Width',ps,o.sx)}${nr('sz','Depth',ps,o.sz)}${nr('th','Thickness',ps,o.th||.5)}<div class="stg">Movement</div><label>Moves</label><select data-f="mva">${[['none','Stays still'],['x','Left-right'],['z','Forward-back'],['y','Up-down']].map(([v,n])=>`<option value="${v}" ${(o.mv?o.mv.a:'none')==v?'selected':''}>${n}</option>`).join('')}</select>${o.mv?nr('d','Distance',1,o.mv.d)+nr('s','Speed',.1,o.mv.s):''}`:''}
   ${o.k=='d'?`<div class="stg">Size</div>${nr('sx','Width',ps,o.sx)}${nr('sy','Height',ps,o.sy)}${nr('sz','Depth',ps,o.sz)}`:''}
@@ -89,7 +89,7 @@ function gameEd(me){
   P.querySelectorAll('[data-f]').forEach(f=>{const k=f.dataset.f;f.onfocus=()=>{if(k=='c')snapH()};f.oninput=f.onchange=()=>{const o2=O()[GE.sel];
    if(k=='mva'){snapH();o2.mv=f.value=='none'?undefined:{a:f.value,d:o2.mv?o2.mv.d:6,s:o2.mv?o2.mv.s:1};updObj(GE.sel);propsRender();redraw();persist();return}
    if(k=='nm'){o2.nm=f.value;exRender();$('#pp .phead b').textContent=label(o2,GE.sel);persist();return}
-   if(String(o2[k])===String(k=='wi'?+f.value:f.value))return;if(k!='c')snapH();o2[k]=k=='wi'?+f.value:f.value;updObj(GE.sel);if(k=='t'||k=='shape'||k=='wi'){exRender();propsRender()}redraw();persist()}});
+   if(String(o2[k])===String(k=='wi'?+f.value:f.value))return;if(k!='c')snapH();o2[k]=k=='wi'?+f.value:f.value;if(k=='mat'&&f.value!='none')o2.c='#ffffff';updObj(GE.sel);if(k=='t'||k=='shape'||k=='wi'||k=='mat'){exRender();propsRender()}redraw();persist()}});
   P.querySelectorAll('[data-pal]').forEach(b=>b.onclick=()=>{snapH();O()[GE.sel].c=b.dataset.pal;updObj(GE.sel);const ci=P.querySelector('[data-f=c]');if(ci)ci.value=b.dataset.pal;redraw();persist()});
   P.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>b.dataset.act=='du'?dup():del())}
  /* ----- mouse / touch controls ----- */
