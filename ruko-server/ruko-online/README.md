@@ -103,3 +103,7 @@ New in the Code tab: compare score/variables against each other (not just fixed 
 until a condition becomes true, a math block that combines two values (+ − × ÷) into score or a variable, a "spawn a copy" block
 (coins are pick-up-able, copies are just visual) with an optional lifetime, a "spin" block for continuously rotating decorations,
 and a new "player types a chat command" trigger (server games only).
+
+## Platform materials
+Platforms can now have a Material (Grass, Stone, Brick, Concrete, or None for flat color) set from Properties in Ruko Studio.
+Materials are procedurally generated textures, so no image uploads needed.

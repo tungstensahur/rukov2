@@ -270,7 +270,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method=='GET')return send(res,200,{games:D.games.map(g=>({...g,objs:undefined,scripts:undefined,thumb:undefined,ht:!!g.thumb,n:g.objs?g.objs.length:0,sc:g.scripts?g.scripts.length:0})),plays:D.plays});
   if(!me)return need();
   const objs=Array.isArray(b.objs)?b.objs.slice(0,300).map(o=>{const k=['p','c','s','d','w'].includes(o&&o.k)?o.k:null;if(!k)return null;const r={k,x:clamp(o.x,-200,200,0),y:clamp(o.y,-20,200,0),z:clamp(o.z,-200,200,0)};
-   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,200,3);r.sz=clamp(o.sz,.5,200,3);r.th=clamp(o.th,.25,40,.5);r.c=col(o.c);if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
+   if(k=='p'){r.t=['solid','lava','bounce','check','goal','crumble'].includes(o.t)?o.t:'solid';r.sx=clamp(o.sx,.5,200,3);r.sz=clamp(o.sz,.5,200,3);r.th=clamp(o.th,.25,40,.5);r.c=col(o.c);if(['grass','stone','brick','concrete'].includes(o.mat))r.mat=o.mat;if(o.mv&&['x','y','z'].includes(o.mv.a))r.mv={a:o.mv.a,d:clamp(o.mv.d,0,30,4),s:clamp(o.mv.s,.1,6,1)}}
    if(k=='d'){r.shape=['box','sphere','cone','cylinder','pyramid','prism'].includes(o.shape)?o.shape:'box';r.sx=clamp(o.sx,.1,40,2);r.sy=clamp(o.sy,.1,40,2);r.sz=clamp(o.sz,.1,40,2);r.c=col(o.c)}
    if(k=='w')r.wi=clamp(o.wi,0,5,0)|0;if(typeof o.nm=='string'&&o.nm)r.nm=o.nm.slice(0,16);if(typeof o.u=='string'&&/^[\w-]{1,10}$/.test(o.u))r.u=o.u;return r}).filter(Boolean):null;
   if(objs&&!objs.some(o=>o.k=='p'))return send(res,400,{error:'Add at least one platform.'});
