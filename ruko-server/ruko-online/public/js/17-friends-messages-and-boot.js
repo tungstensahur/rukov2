@@ -32,8 +32,26 @@ let moreOpen=false;
 function closeMore(){moreOpen=false;$('#msheet').classList.remove('open')}
 $('#more').onclick=()=>{moreOpen=!moreOpen;$('#msheet').classList.toggle('open',moreOpen)};
 $('#msheet').onclick=e=>{if(e.target.id=='msheet')closeMore()};
+function urlB64(s){const pad='='.repeat((4-s.length%4)%4),b=(s+pad).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(b),arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr}
+async function pushStatus(){if(!('serviceWorker' in navigator)||!('PushManager' in window))return null;try{const reg=await navigator.serviceWorker.getRegistration('/');if(!reg)return false;const sub=await reg.pushManager.getSubscription();return !!sub}catch(e){return false}}
+async function togglePush(){
+ if(!('serviceWorker' in navigator)||!('PushManager' in window))return toast('Notifications are not supported on this browser.');
+ try{
+  const reg=await navigator.serviceWorker.register('/sw.js');
+  const existing=await reg.pushManager.getSubscription();
+  if(existing){await api('/api/push/unsub',{endpoint:existing.endpoint});await existing.unsubscribe();toast('Notifications turned off.',true);return buildMoreSheet(cur())}
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted')return toast('Notifications were not allowed.');
+  const r=await api('/api/push/key');if(!r||!r.key)return toast('Could not reach the server.');
+  const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64(r.key)});
+  const ok=await api('/api/push/sub',{sub:sub.toJSON()});
+  if(ok&&ok.ok){toast('Notifications enabled! You\'ll get alerts for friend requests and messages.',true)}else toast('Could not enable notifications.');
+  buildMoreSheet(cur());
+ }catch(e){toast('Could not enable notifications on this device.')}
+}
 function buildMoreSheet(me){if(!me)return;const items=[...document.querySelectorAll('#top nav button[data-r]')].filter(b=>b.id!=='adm'||me.admin||me.mod);
- $('#msb').innerHTML=items.map(b=>`<button class="msi" data-r="${b.dataset.r}">${b.querySelector('.ic').outerHTML}<span>${b.querySelector('.lb').textContent}</span></button>`).join('')+'<button class="msi" id="msprofile"><span class="ic">👤</span><span>Profile</span></button><button class="msi" id="mslogout"><span class="ic">🚪</span><span>Log out</span></button>';
+ $('#msb').innerHTML=items.map(b=>`<button class="msi" data-r="${b.dataset.r}">${b.querySelector('.ic').outerHTML}<span>${b.querySelector('.lb').textContent}</span></button>`).join('')+'<button class="msi" id="mspush"><span class="ic">🔔</span><span>Notifications…</span></button><button class="msi" id="msprofile"><span class="ic">👤</span><span>Profile</span></button><button class="msi" id="mslogout"><span class="ic">🚪</span><span>Log out</span></button>';
  $('#msb').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{location.hash='#/'+b.dataset.r;closeMore()});
- $('#msprofile').onclick=()=>{closeMore();goProfile()};$('#mslogout').onclick=doLogout}
+ $('#msprofile').onclick=()=>{closeMore();goProfile()};$('#mslogout').onclick=doLogout;$('#mspush').onclick=()=>{closeMore();togglePush()};
+ pushStatus().then(on=>{const el=$('#mspush span:last-child');if(el)el.textContent=on===null?'Notifications (unsupported)':on?'Turn off notifications':'Turn on notifications'})}
 addEventListener('hashchange',navigate);boot();

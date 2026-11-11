@@ -1,8 +1,8 @@
 // Ruko server: accounts, shared hats/games, sales, live game servers. No dependencies.
-const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
+const http=require('http'),https=require('https'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DIR=process.env.DATA_DIR||path.join(__dirname,'data'),FILE=path.join(DIR,'data.json');
 fs.mkdirSync(DIR,{recursive:true});
-let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{},friends:{},freq:{},dm:{}};
+let D={users:{},sessions:{},hats:[],games:[],sales:{},likes:{},shirtImg:{},plays:{},meta:{},friends:{},freq:{},dm:{},push:{},vapid:null};
 // Storage: if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, everything is saved to that free Redis
 // database and survives restarts/redeploys. Otherwise it falls back to a local file (lost when the host wipes its disk).
 const RURL=(process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/$/,''),RTOK=process.env.UPSTASH_REDIS_REST_TOKEN||'',REDIS=!!(RURL&&RTOK);
@@ -20,11 +20,13 @@ const views={
  meta:()=>Object.entries(D.meta).map(([k,v])=>[k,JSON.stringify(v)]),
  friends:()=>Object.entries(D.friends).map(([k,v])=>[k,JSON.stringify(v)]),
  freq:()=>Object.entries(D.freq).map(([k,v])=>[k,JSON.stringify(v)]),
- dm:()=>Object.entries(D.dm).map(([k,v])=>[k,JSON.stringify(v)])};
+ dm:()=>Object.entries(D.dm).map(([k,v])=>[k,JSON.stringify(v)]),
+ push:()=>Object.entries(D.push).map(([k,v])=>[k,JSON.stringify(v)]),
+ vapid:()=>D.vapid?[['keys',JSON.stringify(D.vapid)]]:[]};
 const rcall=async(path,body)=>{const r=await fetch(RURL+path,{method:'POST',headers:{Authorization:'Bearer '+RTOK,'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Redis HTTP '+r.status);return r.json()};
 const hall=async c=>{const j=await rcall('',['HGETALL','ruko:'+c]);if(j.error)throw new Error(j.error);const a=j.result||[],o={};for(let i=0;i<a.length;i+=2)o[a[i]]=a[i+1];return o};
 async function loadRedis(){
- const[u,s,h,g,t,sa,l,si,pl,mt,fr,fq,dm]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta','friends','freq','dm'].map(hall));D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.friends=Object.fromEntries(Object.entries(fr).map(([k,v])=>[k,JSON.parse(v)]));D.freq=Object.fromEntries(Object.entries(fq).map(([k,v])=>[k,JSON.parse(v)]));D.dm=Object.fromEntries(Object.entries(dm).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
+ const[u,s,h,g,t,sa,l,si,pl,mt,fr,fq,dm,pu,va]=await Promise.all(['users','sessions','hats','games','thumbs','sales','likes','shirtimgs','plays','meta','friends','freq','dm','push','vapid'].map(hall));D.push=Object.fromEntries(Object.entries(pu).map(([k,v])=>[k,JSON.parse(v)]));D.vapid=va.keys?JSON.parse(va.keys):null;D.meta=Object.fromEntries(Object.entries(mt).map(([k,v])=>[k,JSON.parse(v)]));D.friends=Object.fromEntries(Object.entries(fr).map(([k,v])=>[k,JSON.parse(v)]));D.freq=Object.fromEntries(Object.entries(fq).map(([k,v])=>[k,JSON.parse(v)]));D.dm=Object.fromEntries(Object.entries(dm).map(([k,v])=>[k,JSON.parse(v)]));D.shirtImg=si;D.plays=Object.fromEntries(Object.entries(pl).map(([k,v])=>[k,+v]));
  D.users=Object.fromEntries(Object.entries(u).map(([k,v])=>[k,JSON.parse(v)]));D.sessions=s;
  D.hats=Object.values(h).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));
  D.games=Object.values(g).map(x=>JSON.parse(x)).sort((a,b)=>(a.at||0)-(b.at||0));D.games.forEach(x=>{if(t[x.id])x.thumb=t[x.id]});
@@ -46,6 +48,7 @@ async function flush(){
 setInterval(flush,4000);
 process.on('SIGTERM',async()=>{dirty=1;busy=0;try{await flush()}catch(e){}process.exit(0)});
 const INDEX=fs.readFileSync(path.join(__dirname,'public','index.html'));
+const SW=fs.readFileSync(path.join(__dirname,'public','sw.js'));
 const JSDIR=path.join(__dirname,'public','js');
 const JSFILES={};for(const f of fs.readdirSync(JSDIR))if(f.endsWith('.js'))JSFILES[f]=fs.readFileSync(path.join(JSDIR,f));
 const PRICE={r1:50,r2:120,r3:200,r4:400,r5:30,r6:80};
@@ -103,6 +106,79 @@ const vcool=new Map();
 const payVisit=(id,me)=>{const gid=id.slice(3).replace(/x\d+$/,''),g=D.games.find(x=>x.id==gid),cname=g?g.creator:(['g1','g2','g3'].includes(gid)?'Ruko':null);if(!cname)return;const cu=D.users[cname.toLowerCase()];if(!cu||cu.name===me.name)return;const key=me.name+'|'+gid,now=Date.now();if(now-(vcool.get(key)||0)<600000)return;vcool.set(key,now);cu.coins+=10;cu.ernVisits=(cu.ernVisits||0)+10;save()};
 // Friends and DMs. D.friends[name] = [names]. D.freq[name] = {from: ts} pending requests received. D.dm[convoKey] = [{from,text,t}], convoKey = sorted lowercase names joined by '|'.
 const convoKey=(a,b)=>[a.toLowerCase(),b.toLowerCase()].sort().join('|');
+/* ---------- Web Push (RFC 8291 / VAPID) - no external dependencies ---------- */
+const b64u=buf=>Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const ub64u=s=>Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4),'base64');
+function derToRaw(der){ // ECDSA DER signature -> raw r||s (32+32 bytes) for P-256
+ let i=2,out=Buffer.alloc(64);
+ for(let part=0;part<2;part++){
+  if(der[i]!==2)throw new Error('bad DER sig');
+  let len=der[i+1],off=i+2;
+  if(len>32){off+=len-32;len=32}
+  der.copy(out,part*32+(32-len),off,off+len);
+  i+=2+der[i+1];
+ }
+ return out;
+}
+let VAPID=null;
+function loadVapid(){
+ if(D.vapid&&D.vapid.priv){VAPID=D.vapid;return}
+ const ecdh=crypto.createECDH('prime256v1');ecdh.generateKeys();
+ VAPID={pub:b64u(ecdh.getPublicKey()),priv:b64u(ecdh.getPrivateKey())};
+ D.vapid=VAPID;save();
+}
+function vapidJWT(aud){
+ const header=b64u(Buffer.from(JSON.stringify({typ:'JWT',alg:'ES256'}))),
+  payload=b64u(Buffer.from(JSON.stringify({aud,exp:Math.floor(Date.now()/1000)+12*3600,sub:'mailto:ruko-admin@example.com'}))),
+  signInput=header+'.'+payload,
+  key=crypto.createPrivateKey({key:derWrapECPriv(ub64u(VAPID.priv)),format:'der',type:'sec1'}),
+  der=crypto.sign('sha256',Buffer.from(signInput),{key,dsaEncoding:'der'});
+ return signInput+'.'+b64u(derToRaw(der));
+}
+function derWrapECPriv(rawPriv){ // wrap a raw 32-byte P-256 private key + our public key into a SEC1 DER blob
+ const pub=ub64u(VAPID.pub),seq=b=>Buffer.concat([Buffer.from([0x30,b.length]),b]),
+  octet=b=>Buffer.concat([Buffer.from([0x04,b.length]),b]),
+  ctx0=Buffer.concat([Buffer.from([0xa0,0x07,0x06,0x05,0x2b,0x81,0x04,0x00,0x0a])]), // OID prime256v1 shortcut unused; use named curve below instead
+  body=Buffer.concat([Buffer.from([0x02,0x01,0x01]),octet(rawPriv),Buffer.from([0xa0,0x0a,0x06,0x08,0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07]),Buffer.from([0xa1,0x44,0x03,0x42,0x00]),pub]);
+ return seq(body);
+}
+async function sendPush(username,title,body,url){
+ const subs=(D.push&&D.push[username])||[];if(!subs.length)return;
+ if(!VAPID)loadVapid();
+ const payload=Buffer.from(JSON.stringify({title,body,url:url||'/'}));
+ for(const sub of subs.slice()){
+  try{
+   const endpoint=new URL(sub.endpoint),aud=endpoint.origin,
+    uaPub=ub64u(sub.keys.p256dh),authSecret=ub64u(sub.keys.auth),
+    ecdh=crypto.createECDH('prime256v1');ecdh.generateKeys();
+   const asPub=ecdh.getPublicKey(),shared=ecdh.computeSecret(uaPub);
+   const hmac=(k,m)=>crypto.createHmac('sha256',k).update(m).digest();
+   const prkKey=hmac(authSecret,shared);
+   const keyInfo=Buffer.concat([Buffer.from('WebPush: info\0'),uaPub,asPub]);
+   const ikm=hmac(prkKey,Buffer.concat([keyInfo,Buffer.from([1])])).slice(0,32);
+   const salt=crypto.randomBytes(16);
+   const prk=hmac(salt,ikm);
+   const cek=hmac(prk,Buffer.concat([Buffer.from('Content-Encoding: aes128gcm\0'),Buffer.from([1])])).slice(0,16);
+   const nonce=hmac(prk,Buffer.concat([Buffer.from('Content-Encoding: nonce\0'),Buffer.from([1])])).slice(0,12);
+   const plain=Buffer.concat([payload,Buffer.from([2])]); // record delimiter, no further padding
+   const cipher=crypto.createCipheriv('aes-128-gcm',cek,nonce);
+   const ct=Buffer.concat([cipher.update(plain),cipher.final(),cipher.getAuthTag()]);
+   const header=Buffer.alloc(16+4+1+65);
+   salt.copy(header,0);header.writeUInt32BE(4096,16);header.writeUInt8(65,20);asPub.copy(header,21);
+   const body2=Buffer.concat([header,ct]);
+   const jwt=vapidJWT(aud);
+   await new Promise((ok,no)=>{
+    const req=https.request({hostname:endpoint.hostname,path:endpoint.pathname+endpoint.search,method:'POST',port:443,
+     headers:{'Content-Type':'application/octet-stream','Content-Encoding':'aes128gcm','TTL':'2419200','Content-Length':body2.length,
+      'Authorization':'vapid t='+jwt+', k='+VAPID.pub}},res=>{
+      if(res.statusCode==404||res.statusCode==410){D.push[username]=(D.push[username]||[]).filter(s=>s.endpoint!==sub.endpoint);save()}
+      res.resume();res.on('end',ok)});
+    req.on('error',no);req.write(body2);req.end();
+   });
+  }catch(e){console.error('push failed:',e.message)}
+ }
+}
+
 const dmlc=new Map();
 const staff=u=>!!u&&!!(u.admin||u.mod);
 const priceOf=(id,h)=>{const m=D.meta[id];return m&&m.price!=null?m.price:h?h.price:PRICE[id]};
@@ -131,6 +207,7 @@ const room=id=>{if(rooms[id])return rooms[id];const gid=id.slice(3).replace(/x\d
  return rooms[id]=r};
 const server=http.createServer(async(req,res)=>{
  const p=new URL(req.url,'http://x').pathname;
+ if(p=='/sw.js'){res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','service-worker-allowed':'/'});return res.end(SW)}
  if(p.startsWith('/js/')){const f=p.slice(4);if(!JSFILES[f]){res.writeHead(404);return res.end()}res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','cache-control':'public, max-age=3600'});return res.end(JSFILES[f])}
  if(!p.startsWith('/api/')){res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(INDEX)}
  let b={};if(req.method=='POST'){try{b=JSON.parse(await body(req)||'{}')}catch(e){return send(res,400,{error:'Bad request'})}}
@@ -221,6 +298,17 @@ const server=http.createServer(async(req,res)=>{
   if(!me)return need();if(!staff(me))return send(res,403,{error:'Staff only.'});
   return send(res,200,{hats:D.hats,games:D.games.map(g=>({id:g.id,name:g.name,desc:g.desc,creator:g.creator,genre:g.genre,pvp:!!g.pvp,ht:!!g.thumb,n:g.objs?g.objs.length:0,at:g.at||0})),plays:D.plays,sales:D.sales,likes:Object.fromEntries(Object.entries(D.likes).map(([k,v])=>[k,v.length])),meta:D.meta});
  }
+if(p=='/api/push/key'){if(!VAPID)loadVapid();return send(res,200,{key:VAPID.pub})}
+ if(p=='/api/push/sub'){
+  if(!me)return need();const sub=b.sub;
+  if(!sub||typeof sub.endpoint!='string'||!sub.keys||typeof sub.keys.p256dh!='string'||typeof sub.keys.auth!='string')return send(res,400,{error:'Bad subscription.'});
+  const list=D.push[me.name]=D.push[me.name]||[];if(list.length>=6)list.shift();
+  if(!list.some(s=>s.endpoint===sub.endpoint))list.push({endpoint:sub.endpoint.slice(0,500),keys:{p256dh:sub.keys.p256dh.slice(0,200),auth:sub.keys.auth.slice(0,100)}});
+  save();return send(res,200,{ok:1});
+ }
+ if(p=='/api/push/unsub'){
+  if(!me)return need();const ep=String(b.endpoint||'');D.push[me.name]=(D.push[me.name]||[]).filter(s=>s.endpoint!==ep);save();return send(res,200,{ok:1});
+ }
  if(p=='/api/friends'){
   if(!me)return need();
   if(req.method=='GET'){const mine=D.friends[me.name]||[],inc=Object.entries(D.freq[me.name]||{}).map(([n])=>n),out=Object.entries(D.freq).filter(([,v])=>v[me.name]).map(([n])=>n);
@@ -229,10 +317,10 @@ const server=http.createServer(async(req,res)=>{
   if(!tu||tu.banned||tk===me.name.toLowerCase())return send(res,400,{error:'No such player.'});
   if(b.action=='request'){if((D.friends[me.name]||[]).includes(tu.name))return send(res,400,{error:'Already friends.'});
    if(D.freq[tu.name]&&D.freq[tu.name][me.name])return send(res,400,{error:'Request already sent.'});
-   if(D.freq[me.name]&&D.freq[me.name][tu.name]){delete D.freq[me.name][tu.name];(D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1,matched:1})}
-   D.freq[tu.name]=D.freq[tu.name]||{};D.freq[tu.name][me.name]=Date.now();save();return send(res,200,{ok:1});}
+   if(D.freq[me.name]&&D.freq[me.name][tu.name]){delete D.freq[me.name][tu.name];(D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();sendPush(tu.name,'Ruko',me.name+' is now your friend!','#/user/'+encodeURIComponent(me.name));return send(res,200,{ok:1,matched:1})}
+   D.freq[tu.name]=D.freq[tu.name]||{};D.freq[tu.name][me.name]=Date.now();save();sendPush(tu.name,'Friend request',me.name+' wants to be your friend','#/friends');return send(res,200,{ok:1});}
   if(b.action=='accept'){if(!D.freq[me.name]||!D.freq[me.name][tu.name])return send(res,400,{error:'No request from that player.'});delete D.freq[me.name][tu.name];
-   (D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();return send(res,200,{ok:1});}
+   (D.friends[me.name]=D.friends[me.name]||[]).push(tu.name);(D.friends[tu.name]=D.friends[tu.name]||[]).push(me.name);save();sendPush(tu.name,'Ruko',me.name+' accepted your friend request!','#/user/'+encodeURIComponent(me.name));return send(res,200,{ok:1});}
   if(b.action=='decline'){if(D.freq[me.name])delete D.freq[me.name][tu.name];save();return send(res,200,{ok:1});}
   if(b.action=='cancel'){if(D.freq[tu.name])delete D.freq[tu.name][me.name];save();return send(res,200,{ok:1});}
   if(b.action=='remove'){D.friends[me.name]=(D.friends[me.name]||[]).filter(n=>n!==tu.name);D.friends[tu.name]=(D.friends[tu.name]||[]).filter(n=>n!==me.name);save();return send(res,200,{ok:1});}
@@ -249,7 +337,7 @@ const server=http.createServer(async(req,res)=>{
   if(me.muted)return send(res,403,{error:'You are muted.'});
   const now=Date.now();if(now-(dmlc.get(me.name)||0)<500)return send(res,429,{error:'Slow down.'});dmlc.set(me.name,now);
   const text=String(b.text||'').trim().slice(0,500);if(!text)return send(res,400,{error:'Empty message.'});
-  const key=convoKey(me.name,ou.name);(D.dm[key]=D.dm[key]||[]).push({from:me.name,text,t:now});if(D.dm[key].length>200)D.dm[key].shift();save();return send(res,200,{ok:1});
+  const key=convoKey(me.name,ou.name);(D.dm[key]=D.dm[key]||[]).push({from:me.name,text,t:now});if(D.dm[key].length>200)D.dm[key].shift();save();sendPush(ou.name,me.name,text.slice(0,120),'#/messages/'+encodeURIComponent(me.name));return send(res,200,{ok:1});
  }
  if(p=='/api/conversations'){
   if(!me)return need();const names=new Set();Object.keys(D.dm).forEach(k=>{const[a,b2]=k.split('|');if(a===me.name.toLowerCase())names.add(b2);else if(b2===me.name.toLowerCase())names.add(a)});
@@ -411,5 +499,5 @@ setInterval(()=>{for(const r of Object.values(rooms))for(const c of r.cl.values(
   if(!had&&fileData){Object.assign(D,fileData);D.likes=D.likes||{};dirty=1;console.log('Redis was empty: copying the local data file into it.')}
   else console.log(had?'Loaded all data from Redis.':'Redis is empty: starting fresh.');
  }else{if(fileData)Object.assign(D,fileData);console.log('No Redis configured: saving to a local file (lost if the host resets its disk).')}
- seedAdmin();seedBuiltins();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
+ seedAdmin();seedBuiltins();loadVapid();server.listen(PORT,()=>console.log('Ruko running on port '+PORT));
 })();

@@ -112,3 +112,10 @@ Materials are procedurally generated textures, so no image uploads needed.
 Materials now tile based on each platform's actual size instead of stretching, and the platform's Color field becomes a
 Tint color once a material is set (white = natural look, any other color multiplies over the texture). Stone was redesigned
 with irregular rock patches and crack lines instead of the old polka-dot look.
+
+## Push notifications
+Real browser/device notifications (via the Web Push standard) for friend requests, friend acceptances, and new messages —
+no extra packages, no third-party push service. Turn it on from the ☰ More menu > Notifications. Works on desktop, Android,
+and Chrome/Firefox; on iPhone, Safari only supports this after the player adds Ruko to their Home Screen (a plain Safari tab
+cannot receive push on iOS). The signing keys (VAPID) are generated once and saved the same way as everything else, so they
+survive restarts as long as Redis or the data file persists.
