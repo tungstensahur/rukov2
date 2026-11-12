@@ -62,6 +62,7 @@ function makePlayer(hat){const g=new THREE.Group(),L=c=>new THREE.MeshLambertMat
 const TK={};
 document.querySelectorAll('#acts button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();TK[k]=1};['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>TK[k]=0))});
 document.querySelectorAll('#pad button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();TK[k]=1};['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>TK[k]=0))});
+let SFX_ON=ls.get('ruko_sfx',true);
 async function play0(g,srv){
  const me=cur(),hat=gearList(me),W=$('#game');W.style.display='block';$('#gt').textContent=g.name+(srv?' · Server '+String(srv).replace(/^.*x/,''):'')+(DEV()=='desktop'?'  ·  WASD move · Space jump · drag to look · wheel zoom':'');$('#gh').textContent='';$('#gmsg').textContent='';$('#chatw').style.display=srv?'block':'none';$('#svd').textContent='';
  const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);W.prepend(R.domElement);
@@ -112,7 +113,6 @@ const SCR=g.scripts||[],ph={spd:g.spd||7,jmp:g.jmp||9,grav:g.grav||22},SV={score
 SCR.forEach(s=>{s.st={run:false,tn:0,fired:false,touching:false,cool:0,started:false}});
 if(hasScr)$('#acts').classList.toggle('on',SCR.some(s=>s.h&&s.h.t=='action'))
 function burst(c,col){const n=10;for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.18),new THREE.MeshBasicMaterial({color:col||'#ffd23f'}));m.position.set(c.x,c.y,c.z);S.add(m);const a=Math.random()*6.28,sp2=1.5+Math.random()*2.5,vy=2+Math.random()*2.5,t0=performance.now();const step=()=>{const dt2=(performance.now()-t0)/1000;if(dt2>1){S.remove(m);m.geometry.dispose();m.material.dispose();return}m.position.set(c.x+Math.cos(a)*sp2*dt2,c.y+vy*dt2-4*dt2*dt2,c.z+Math.sin(a)*sp2*dt2);m.material.opacity=1-dt2;m.material.transparent=true;requestAnimationFrame(step)};requestAnimationFrame(step)}}
-let SFX_ON=ls.get('ruko_sfx',true);
 const beep=k=>{if(!SFX_ON)return;try{aud=aud||new(window.AudioContext||window.webkitAudioContext)();const a=aud,o=a.createOscillator(),gn=a.createGain(),P={beep:[660,.12,'square'],coin:[988,.18,'sine'],jump:[440,.15,'triangle'],boom:[90,.4,'sawtooth'],win:[784,.4,'sine'],hurt:[180,.25,'square']}[k]||[660,.12,'square'];o.type=P[2];o.frequency.setValueAtTime(P[0],a.currentTime);if(k=='coin'||k=='win')o.frequency.setValueAtTime(P[0]*1.5,a.currentTime+.08);if(k=='boom'||k=='hurt')o.frequency.exponentialRampToValueAtTime(40,a.currentTime+P[1]);gn.gain.setValueAtTime(.15,a.currentTime);gn.gain.exponentialRampToValueAtTime(.001,a.currentTime+P[1]);o.connect(gn);gn.connect(a.destination);o.start();o.stop(a.currentTime+P[1])}catch(e){}};
 function sayMsg(m,s){const el=$('#gmsg');el.textContent=m;clearTimeout(sayT);sayT=setTimeout(()=>{if(el.textContent==m)el.textContent=''},Math.max(300,s*1000))}
 function entPos(e){return e.q?{x:e.q.x,y:e.q.y,z:e.q.z}:{x:e.mesh.position.x,y:e.mesh.position.y,z:e.mesh.position.z}}
