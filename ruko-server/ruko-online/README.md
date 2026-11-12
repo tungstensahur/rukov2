@@ -119,3 +119,7 @@ no extra packages, no third-party push service. Turn it on from the ☰ More men
 and Chrome/Firefox; on iPhone, Safari only supports this after the player adds Ruko to their Home Screen (a plain Safari tab
 cannot receive push on iOS). The signing keys (VAPID) are generated once and saved the same way as everything else, so they
 survive restarts as long as Redis or the data file persists.
+
+## Settings page
+A new Settings page (nav + ☰ More menu) lets players switch between Light, Dark, or Match device theme, turn sound
+effects on/off, manage push notifications, and log out. Theme preference is saved per device.

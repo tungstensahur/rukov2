@@ -1,3 +1,16 @@
+/* ---------- Settings page ---------- */
+async function settingsView(){const theme=ls.get('ruko_theme','auto');
+ app.innerHTML=`<h2>Settings</h2>
+ <div class="card"><div class="stg" style="margin-top:0">Appearance</div><label>Theme</label><div class="chips">${[['auto','Match device'],['light','☀️ Light'],['dark','🌙 Dark']].map(([v,n])=>`<button data-theme-v="${v}" class="${theme==v?'on':''}">${n}</button>`).join('')}</div></div>
+ <div class="card" style="margin-top:12px"><div class="stg" style="margin-top:0">Sound</div><label><input id="sfxcb" type="checkbox" ${SFX_ON?'checked':''}> Sound effects (coins, jumps, hits, etc.)</label></div>
+ <div class="card" style="margin-top:12px"><div class="stg" style="margin-top:0">Notifications</div><p class="mut" style="font-size:13px;margin-top:0">Get a real notification for friend requests and new messages, even when Ruko isn't open.</p><button id="pushbtn">🔔 Loading…</button></div>
+ <div class="card" style="margin-top:12px"><div class="stg" style="margin-top:0">Account</div><div>Signed in as <b>${esc(cur().name)}</b></div><button id="setout" style="margin-top:8px">🚪 Log out</button></div>`;
+ app.querySelectorAll('[data-theme-v]').forEach(b=>b.onclick=()=>{ls.set('ruko_theme',b.dataset.themeV);applyTheme();settingsView()});
+ $('#sfxcb').onchange=e=>{SFX_ON=e.target.checked;ls.set('ruko_sfx',SFX_ON);if(SFX_ON)beep('beep')};
+ $('#setout').onclick=doLogout;
+ const pb=$('#pushbtn'),on=await pushStatus();
+ pb.textContent=on===null?'🔔 Not supported on this browser':on?'🔔 Turn off notifications':'🔔 Turn on notifications';
+ if(on!==null)pb.onclick=()=>togglePush().then(settingsView)}
 /* ---------- v17: friends and direct messages ---------- */
 let FR={friends:[],incoming:[],outgoing:[]},DMT=null;
 async function friendsView(){const r=await api('/api/friends');if(r&&!r.error)FR=r;
@@ -50,8 +63,9 @@ async function togglePush(){
  }catch(e){toast('Could not enable notifications on this device.')}
 }
 function buildMoreSheet(me){if(!me)return;const items=[...document.querySelectorAll('#top nav button[data-r]')].filter(b=>b.id!=='adm'||me.admin||me.mod);
- $('#msb').innerHTML=items.map(b=>`<button class="msi" data-r="${b.dataset.r}">${b.querySelector('.ic').outerHTML}<span>${b.querySelector('.lb').textContent}</span></button>`).join('')+'<button class="msi" id="mspush"><span class="ic">🔔</span><span>Notifications…</span></button><button class="msi" id="msprofile"><span class="ic">👤</span><span>Profile</span></button><button class="msi" id="mslogout"><span class="ic">🚪</span><span>Log out</span></button>';
+ $('#msb').innerHTML=items.map(b=>`<button class="msi" data-r="${b.dataset.r}">${b.querySelector('.ic').outerHTML}<span>${b.querySelector('.lb').textContent}</span></button>`).join('')+'<button class="msi" id="mssettings"><span class="ic">⚙️</span><span>Settings</span></button><button class="msi" id="mspush"><span class="ic">🔔</span><span>Notifications…</span></button><button class="msi" id="msprofile"><span class="ic">👤</span><span>Profile</span></button><button class="msi" id="mslogout"><span class="ic">🚪</span><span>Log out</span></button>';
  $('#msb').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{location.hash='#/'+b.dataset.r;closeMore()});
  $('#msprofile').onclick=()=>{closeMore();goProfile()};$('#mslogout').onclick=doLogout;$('#mspush').onclick=()=>{closeMore();togglePush()};
+ $('#mssettings')&&( $('#mssettings').onclick=()=>{location.hash='#/settings';closeMore()});
  pushStatus().then(on=>{const el=$('#mspush span:last-child');if(el)el.textContent=on===null?'Notifications (unsupported)':on?'Turn off notifications':'Turn on notifications'})}
 addEventListener('hashchange',navigate);boot();
