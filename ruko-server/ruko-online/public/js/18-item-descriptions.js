@@ -1,10 +1,12 @@
 /* ---------- v18: short descriptions for catalog items ---------- */
-let IDESC=null,IBUSY=0,ILOADED=0;
+let IDESC=null,IBUSY=0,ILOAD=0;
 const iGet=p=>Promise.race([api(p).catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
-function iLoad(){
- if(ILOADED)return Promise.resolve(IDESC);
- ILOADED=1;
- return iGet('/api/descs').then(r=>{IDESC=(r&&r.descs)||{};return IDESC},()=>{IDESC={};return IDESC});
+function iStart(){
+ if(ILOAD)return;
+ ILOAD=1;
+ let pr;
+ try{pr=iGet('/api/descs')}catch(e){pr=Promise.resolve(null)}
+ pr.then(r=>{IDESC=(r&&r.descs)||{};ILOAD=2;try{iPaint()}catch(e){}},()=>{IDESC={};ILOAD=2});
 }
 const iId=()=>{const m=/^#\/hat\/([\w-]+)/.exec(location.hash||'');return m?m[1]:null};
 function iOwner(h){try{const me=cur();return !!(me&&me.name&&(me.admin||(h.creator||'').toLowerCase()===me.name.toLowerCase()))}catch(e){return false}}
@@ -34,7 +36,7 @@ function iEdit(id,box){
 function iPaint(){
  const box=document.getElementById('app');
  if(!box)return;
- if(!IDESC){iLoad().then(iPaint);return}
+ if(ILOAD!==2){iStart();return}
  box.querySelectorAll('[data-h]').forEach(t=>{
   const ds=IDESC[t.dataset.h];
   if(!ds||t.querySelector('.idesc'))return;
@@ -77,5 +79,5 @@ function iPaint(){
  const app=document.getElementById('app');
  if(app)ob.observe(app,{childList:true,subtree:true});
  addEventListener('hashchange',()=>setTimeout(()=>{try{iPaint()}catch(e){}},40));
- iLoad().then(()=>{try{iPaint()}catch(e){}});
+ try{iPaint()}catch(e){}
 })();
