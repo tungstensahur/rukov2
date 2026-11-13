@@ -169,6 +169,21 @@ function SCtick(t,dt){for(let i=tws.length-1;i>=0;i--){const w=tws[i],k=Math.min
   else if(h.t=='touch'){const e=ent[h.o];if(e&&!(e.q?e.q.hid:!e.mesh.visible)){const tc=scTouch(e);if(tc&&!st.touching&&t>st.cool){st.cool=t+300;scTrig(s)}st.touching=tc}}});
  for(let i=runs.length-1;i>=0;i--){scStep(runs[i],t);if(runs[i].done){runs[i].s.st.run=false;runs.splice(i,1)}}}
 function scChat(text){const low=text.trim().toLowerCase();SCR.forEach(s=>{if(s.h&&s.h.t=='chatCmd'&&low===String(s.h.m||'').toLowerCase())scTrig(s)})}
+function animP(g,dt,t,hs,sp,gr,vy,atk){const Lb=g.userData.l;if(!Lb)return 0;
+ const ex=Lb.ll.rotation,ey=Lb.rl.rotation,ez=Lb.la.rotation,ew=Lb.ra.rotation,sh=Math.min(1,hs/Math.max(1,sp)),kq=1-Math.exp(-14*dt),br=Math.sin(t*.0019);
+ g.userData.gt=(g.userData.gt||0)+dt*hs*2.3;const gt=g.userData.gt;let tll=0,trl=0,tla=0,tra=0,tlt=0,bob=0;
+ if(!gr){if(vy>1){tll=-.45;trl=.35;tla=-2.05;tra=-2.25;tlt=.12}else{tll=.32;trl=-.5;tla=-1.15;tra=-1.15;tlt=-.07}}
+ else if(sh>.12){const sg=Math.sin(gt)*sh;tll=sg*.95;trl=-sg*.95;tla=-sg*1.1-.1;tra=sg*1.1-.1;tlt=.16*sh;bob=Math.abs(Math.cos(gt))*.06*sh}
+ else{tll=br*.03;trl=-br*.03;tla=-.12+br*.06;tra=-.12-br*.06;tlt=br*.012;bob=br*.018}
+ const fq=atk!=null&&t-atk<220;if(fq){tra=-1.5;tlt*=.4}
+ ex.x+=(tll-ex.x)*kq;ey.x+=(trl-ey.x)*kq;ez.x+=(tla-ez.x)*kq;ew.x+=(tra-ew.x)*kq;
+ if(fq)ew.x=-1.5;
+ g.rotation.order='YXZ';g.rotation.x+=(tlt-g.rotation.x)*kq;return bob}
+function remAnim(o,m,dt,t,sp){const tt=o.t;if(!tt)return;
+ if(o.pt!==tt){const dtt=Math.max(.06,(t-(o.ptAt||t-100))/1000),pv=o.pt||tt;o.svx=(tt.x-pv.x)/dtt;o.svz=(tt.z-pv.z)/dtt;o.svy=(tt.y-pv.y)/dtt;o.pt=tt;o.ptAt=t}
+ m.position.y-=(o.bob||0);m.position.x+=(tt.x-m.position.x)*.3;m.position.y+=(tt.y-m.position.y)*.3;m.position.z+=(tt.z-m.position.z)*.3;m.rotation.y=tt.r;
+ const hs=Math.min(24,Math.hypot(o.svx||0,o.svz||0)),vy=Math.max(-40,Math.min(40,o.svy||0)),gy=Math.abs(vy)<2?1:0;
+ o.bob=animP(m,dt,t,hs,sp,gy,vy,null)||0;m.position.y+=o.bob}
 const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000);t0=t;
   const kb=k=>!ST.dead&&keys[k],tk=k=>!ST.dead&&TK[k],fw=kb('w')||kb('arrowup')||tk('tf'),bk=kb('s')||kb('arrowdown')||tk('tb'),lf=kb('a')||kb('arrowleft')||tk('tl'),rt=kb('d')||kb('arrowright')||tk('tr'),jp=!!(kb(' ')||tk('tj'));
   const ax=(rt?1:0)-(lf?1:0),az=(bk?1:0)-(fw?1:0),im=Math.hypot(ax,az)||1,sp=g.spd||7,ix=ax/im*sp,iz=az/im*sp,cs=Math.cos(cy),sn_=Math.sin(cy),tvx=ix*cs+iz*sn_,tvz=-ix*sn_+iz*cs,hasIn=!!(ax||az),kk=gr?(hasIn?16:20):(hasIn?5:1.2),aa=1-Math.exp(-kk*dt);
@@ -185,25 +200,17 @@ const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000
   if(p.y<(g.killY||-15))rsp();
   coins.forEach(c=>{if(!c.visible)return;c.rotation.z+=dt*3;if(Math.hypot(c.position.x-p.x,c.position.y-p.y-1.3,c.position.z-p.z)<1.8){c.visible=false;got+=5}});
   $('#gh').textContent='⏱ '+((t-ts)/1000|0)+'s   Coins: '+got;if(scUses)$('#svd').textContent='Score: '+SV.score;
-  PVT(t,dt);if(hasScr)SCtick(t,dt);const Lb=pm.userData.l,sh=Math.min(1,hs/Math.max(1,sp)),kq=1-Math.exp(-14*dt),br=Math.sin(t*.0019);
-gait+=dt*hs*2.3;let tll=0,trl=0,tla=0,tra=0,tlt=0,bob=0;
-if(!gr){if(p.vy>1){tll=-.45;trl=.35;tla=-2.05;tra=-2.25;tlt=.12}else{tll=.32;trl=-.5;tla=-1.15;tra=-1.15;tlt=-.07}}
-else if(sh>.12){const sg=Math.sin(gait)*sh;tll=sg*.95;trl=-sg*.95;tla=-sg*1.1-.1;tra=sg*1.1-.1;tlt=.16*sh;bob=Math.abs(Math.cos(gait))*.06*sh}
-else{tll=br*.03;trl=-br*.03;tla=-.12+br*.06;tra=-.12-br*.06;tlt=br*.012;bob=br*.018}
-if(t-atk<220){tra=-1.5;tlt*=.4}
-Lb.ll.rotation.x+=(tll-Lb.ll.rotation.x)*kq;Lb.rl.rotation.x+=(trl-Lb.rl.rotation.x)*kq;Lb.la.rotation.x+=(tla-Lb.la.rotation.x)*kq;Lb.ra.rotation.x+=(tra-Lb.ra.rotation.x)*kq;
-if(t-atk<220)Lb.ra.rotation.x=-1.5;
-pm.rotation.order='YXZ';pm.rotation.x+=(tlt-pm.rotation.x)*kq;pm.position.set(p.x,p.y+bob,p.z);
+  PVT(t,dt);if(hasScr)SCtick(t,dt);const bob=animP(pm,dt,t,hs,sp,gr,p.vy,atk)||0;pm.position.set(p.x,p.y+bob,p.z);
   const ca=1-Math.exp(-14*dt),cb=1-Math.exp(-9*dt);cam3.x+=(p.x-cam3.x)*ca;cam3.z+=(p.z-cam3.z)*ca;cam3.y+=(p.y-cam3.y)*cb;
   const CP=camPose();C.position.set(CP.x,CP.y,CP.z);C.lookAt(CP.x+CP.fx,CP.y+CP.fy,CP.z+CP.fz);
-  if(rr&&t-hb>100){hb=t;rr.presence({x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+pm.rotation.y.toFixed(2),gear:me.gear||{},av:me.av||null}).catch(()=>{})}Object.values(rem).forEach(o=>{const m=o.m;m.position.x+=(o.t.x-m.position.x)*.3;m.position.y+=(o.t.y-m.position.y)*.3;m.position.z+=(o.t.z-m.position.z)*.3;m.rotation.y=o.t.r});R.render(S,C)};
+  if(rr&&t-hb>100){hb=t;rr.presence({x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+pm.rotation.y.toFixed(2),gear:me.gear||{},av:me.av||null}).catch(()=>{})}Object.values(rem).forEach(o=>remAnim(o,o.m,dt,t,sp));R.render(S,C)};
  raf=requestAnimationFrame(loop);
  $('#ex').onclick=()=>{if(off)off();if(rr)rr.leave();setSrv(null);$('#pvp').style.display='none';$('#padx').style.display='none';$('#sbd').innerHTML='';$('#cbox').innerHTML='';$('#chatw').style.display='none';cancelAnimationFrame(raf);removeEventListener('keydown',kd);removeEventListener('keyup',ku);R.dispose();R.domElement.remove();W.style.display='none';
   navigate()}}
 
 /* ---------- views ---------- */
 function authView(mode){
- app.innerHTML=`<div class="card auth"><h1>RUKO</h1><p class="mut">Play, build and dress up in 3D.</p><div class="tabs"><button data-m="in" class="${mode=='in'?'on':''}">Log in</button><button data-m="up" class="${mode=='up'?'on':''}">Sign up</button></div><input id="u" placeholder="Username" autocomplete="username"><input id="p" type="password" placeholder="Password" autocomplete="${mode=='in'?'current-password':'new-password'}"><div id="err" class="err"></div><button class="pri" id="go" style="width:100%">${mode=='in'?'Log in':'Create account'}</button></div>`;
+ app.innerHTML=`<div class="card auth"><h1>RUKO</h1><p class="mut">Play, build and dress up in 3D.</p><div class="tabs"><button data-m="in" class="${mode=='in'?'on':''}">Log in</button><button data-m="up" class="${mode=='up'?'on':''}">Sign up</button></div><input id="u" placeholder="Username" autocomplete="username"><input id="p" type="password" placeholder="Password (6+ characters)" autocomplete="${mode=='in'?'current-password':'new-password'}"><div id="err" class="err"></div><button class="pri" id="go" style="width:100%">${mode=='in'?'Log in':'Create account'}</button></div>`;
  app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>authView(b.dataset.m));
  $('#go').onclick=async()=>{const n=$('#u').value.trim(),p=$('#p').value,k=n.toLowerCase(),U=users(),E=t=>$('#err').textContent=t;
   if(mode=='up'){if(!/^\w{3,16}$/.test(n))return E('Username: 3–16 letters, numbers or underscores.');if(k=='ruko')return E('That name is reserved.');if(p.length<4)return E('Password needs 4+ characters.');if(U[k])return E('Username taken.');
