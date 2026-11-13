@@ -33,7 +33,7 @@ module.exports=async function(req,res){
   const who=await get('/api/me',auth);
   if(!who||!who.me)return json(res,401,{error:'Please log in again.'});
   const id=String(b.id||'');
-  if(!/[\w-]{1,40}/.test(id)||id.length>40)return json(res,400,{error:'Unknown item.'});
+  if(!/^[\w-]{1,40}$/.test(id))return json(res,400,{error:'Unknown item.'});
   const cat=await get('/api/hats',{});
   const item=cat?[...(cat.hats||[]),...(cat.mine||[])].find(h=>h&&h.id===id):null;
   if(!item)return json(res,404,{error:'That item is not in the catalog.'});
