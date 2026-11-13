@@ -1,16 +1,20 @@
 /* ---------- v8: home page (avatar, friends, Ruko news) + games ---------- */
-let LIVE={},GP={},GS={sort:'live',pvp:false},SQ='',HNEWS=null,HFR=null;
+let LIVE={},GP={},GS={sort:'live',pvp:false},SQ='',HNEWS=null,HFR=null,HERR=0;
+function hGet(path){return Promise.race([api(path).catch(()=>null),new Promise(r=>setTimeout(()=>r(null),7000))])}
 async function playAuto(g){const r=await api('/api/servers/assign',{game:g.id});if(r&&r.server)return play(g,r.server);toast((r&&r.error)||'Could not reach a server, starting solo.');return play(g)}
 function gcard(g){const t=g.thumb||(g.ht?`/api/thumb/${g.id}?v=${g.tv||0}`:null),n=LIVE[g.id]||0;
  return `<div class="card">${t?`<img src="${t}" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin-bottom:8px;background:var(--bg)">`:`<div class="gcard" style="background:linear-gradient(${esc(g.sky)},${esc(g.ground)});aspect-ratio:16/9;height:auto"></div>`}<b>${esc(g.name)}</b> <span class="mut" style="font-size:11px">${gGenre(g)}${g.pvp?' · ⚔️ PVP':''}</span><div class="mut" style="font-size:13px;min-height:36px">${esc(g.desc||'')}</div><div class="mut" style="font-size:12px">By <u data-u="${esc(g.creator)}" style="cursor:pointer">${esc(g.creator)}</u> · ${n?`🟢 ${n} playing`:`▶ ${GP[g.id]||0} visits`}</div><button class="pri" data-g="${g.id}" style="width:100%;margin-top:8px">Play</button><button data-solo="${g.id}" style="width:100%;margin-top:6px;font-size:12px">Practice solo</button></div>`}
 function hWhen(t){if(!t)return '';const s=Math.max(1,Math.round((Date.now()-t)/1000));if(s<60)return 'just now';if(s<3600)return Math.round(s/60)+' min ago';if(s<86400)return Math.round(s/3600)+' h ago';const d=Math.round(s/86400);return d==1?'yesterday':d+' days ago'}
+function loadNews(){return hGet('/api/posts').then(r=>{if(!$('#hnews'))return;if(r&&r.posts){HNEWS=r.posts;HERR=0}else HERR=1;hNews()})}
 function hNews(){const box=$('#hnews');if(!box)return;const me=cur();
+ if(HERR){box.innerHTML='<p class="mut" style="margin:6px 0">Could not load the news right now.</p><button id="hnretry">Try again</button>';const b2=$('#hnretry');if(b2)b2.onclick=()=>{HERR=0;HNEWS=null;hNews();loadNews()};return}
  if(!HNEWS){box.innerHTML='<p class="mut" style="margin:6px 0">Loading…</p>';return}
  if(!HNEWS.length){box.innerHTML='<p class="mut" style="margin:6px 0">No news yet.'+(me.admin?' Use the box below to post the first update.':'')+'</p>';return}
  box.innerHTML=HNEWS.map(p=>`<div class="npost"><b>${esc(p.title)}</b> <span class="mut" style="font-size:12px">${hWhen(p.at)}</span><div class="nptx">${esc(p.text)}</div>${me.admin?`<button class="npdel" data-del="${esc(p.id)}">Delete</button>`:''}</div>`).join('');
  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this post for everyone?'))return;const r=await api('/api/posts',{delete:b.dataset.del});if(r&&r.posts){HNEWS=r.posts;hNews()}})}
 function hFriends(){const box=$('#hfr');if(!box)return;
  if(!HFR){box.innerHTML='<span class="mut">Loading…</span>';return}
+ if(!HFR.friends||!HFR.friends.length){const rq=(HFR.incoming||[]).length;box.innerHTML=`<span class="mut">No friends yet.</span><button data-go="friends">${rq?rq+' request'+(rq>1?'s':'')+' waiting':'Find people'}</button>`;box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>location.hash='#/'+b.dataset.go);return}
  const f=HFR.friends||[];
  if(!f.length){box.innerHTML=`<span class="mut">No friends yet.</span><button data-go="friends">Find people</button>`}
  else box.innerHTML=f.slice(0,12).map(x=>`<button data-u="${esc(x.name)}"><span class="dot ${x.online?'':'off'}"></span>${esc(x.name)}</button>`).join('')+(f.length>12?`<button data-go="friends">+${f.length-12} more</button>`:'');
@@ -35,14 +39,14 @@ function home(){const me=cur();
  $('#gq').oninput=e=>{GF.q=e.target.value;paint()};$('#gsr').onchange=e=>{GS.sort=e.target.value;paint()};$('#gpv').onclick=()=>{GS.pvp=!GS.pvp;home()};
  app.querySelectorAll('[data-gf]').forEach(b=>b.onclick=()=>{GF.genre=b.dataset.gf;home()});
  $('#hedit').onclick=()=>location.hash='#/avatar';$('#hprof').onclick=()=>location.hash='#/user/'+encodeURIComponent(me.name);
- $('#hrfr').onclick=()=>{HNEWS=null;hNews();api('/api/posts').then(r=>{if(r&&r.posts){HNEWS=r.posts;hNews()}})};
+ $('#hrfr').onclick=()=>{HNEWS=null;HERR=0;hNews();loadNews()};
  if($('#hnp'))$('#hnp').onclick=async()=>{const t=$('#hnt').value.trim(),x=$('#hnb').value.trim(),E=$('#hnerr');E.textContent='';if(!t||!x){E.textContent='Add a title and some text.';return}
   $('#hnp').disabled=true;const r=await api('/api/posts',{title:t,text:x});$('#hnp').disabled=false;
   if(r&&r.posts){HNEWS=r.posts;$('#hnt').value='';$('#hnb').value='';hNews()}else E.textContent=(r&&r.error)||'Could not publish. Check your connection.'};
  try{const m=makePlayer(gearList(me),me.av||{});$('#hav').src=shot(m,[0,2.4,7],[0,1.6,0])}catch(e){}
  paint();hNews();hFriends();
- api('/api/posts').then(r=>{if(r&&r.posts&&$('#hnews')){HNEWS=r.posts;hNews()}});
- api('/api/friends').then(r=>{if(r&&$('#hfr')){HFR=r;hFriends()}});
+ loadNews();
+ hGet('/api/friends').then(r=>{if($('#hfr')){HFR=r||{friends:[]};hFriends()}});
  api('/api/servers').then(s=>{if(s&&s.players&&$('#gg')){LIVE={};s.players.forEach(p=>{const id=p.server.replace(/x\d+$/,'');LIVE[id]=(LIVE[id]||0)+1});paint()}})}
 /* home page styling */
 (function(){if(document.getElementById('rk-home-style'))return;const st=document.createElement('style');st.id='rk-home-style';
