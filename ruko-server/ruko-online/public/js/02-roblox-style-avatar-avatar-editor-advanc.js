@@ -87,7 +87,7 @@ const RM={join:id=>new Promise((ok,no)=>{const base='/api/room/'+encodeURICompon
   if(d.ev)efns.forEach(f=>f(d.ev));if(d.chat)cfns.forEach(f=>f({...d.chat,isMe:d.chat.peer==me}));if(d.peers)fns.forEach(f=>f({peers:d.peers.map(p=>({...p,isMe:p.peer==me}))}))};
  es.onerror=()=>{if(!live){es.close();no(new Error('full'))}}})};
 function authView(mode){
- app.innerHTML=`<div class="card auth"><h1>RUKO</h1><p class="mut">Play, build and dress up in 3D.</p><div class="tabs"><button data-m="in" class="${mode=='in'?'on':''}">Log in</button><button data-m="up" class="${mode=='up'?'on':''}">Sign up</button></div><input id="u" placeholder="Username" autocomplete="username"><input id="p" type="password" placeholder="Password (6+ characters)" autocomplete="${mode=='in'?'current-password':'new-password'}"><div id="err" class="err"></div><button class="pri" id="go" style="width:100%">${mode=='in'?'Log in':'Create account'}</button></div>`;
+ app.innerHTML=`<div class="rw-auth"><div class="rw-hero"><div class="rw-logo">RUKO</div><p class="rw-tag">Play, build and dress up in 3D.</p><div class="rw-pills"><span>🎮 Games</span><span>🧑 Avatar</span><span>🧰 Block code</span></div></div><div class="card rw-card"><div class="tabs"><button data-m="in" class="${mode=='in'?'on':''}">Log in</button><button data-m="up" class="${mode=='up'?'on':''}">Sign up</button></div><input id="u" placeholder="Username" autocomplete="username"><input id="p" type="password" placeholder="Password (6+ characters)" autocomplete="${mode=='in'?'current-password':'new-password'}"><div id="err" class="err"></div><button class="pri" id="go" style="width:100%">${mode=='in'?'Log in':'Create account'}</button><p class="rw-fine">Free to play · No download · One account on every device</p></div><ul class="rw-list"><li><span>🎮</span><div><b>Jump straight into games</b><small>Obstacle courses, coin hunts and PvP arenas.</small></div></li><li><span>🧑</span><div><b>Make your own avatar</b><small>Round characters with hats, faces and t-shirts.</small></div></li><li><span>🧰</span><div><b>Build your own game</b><small>Lay out a level in Ruko Studio, then add block code.</small></div></li></ul></div>`;
  app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>authView(b.dataset.m));
  $('#go').onclick=async()=>{const E=t=>$('#err').textContent=t,r=await api('/api/'+(mode=='in'?'login':'signup'),{name:$('#u').value.trim(),pass:$('#p').value});
   if(!r||r.error)return E(r?r.error:'Cannot reach the server.');
@@ -98,3 +98,17 @@ async function adminView(){const us=(await api('/api/admin/users'))||{users:[]},
  const done=r=>{if(r&&r.error)toast(r.error);loadAll().then(adminView)};
  bindAdminUsers(done);app.querySelectorAll('[data-dhat],[data-dgame]').forEach(b=>b.onclick=()=>{const hat=b.hasAttribute('data-dhat');if(confirm('Delete this '+(hat?'hat':'game')+' for everyone?'))api('/api/admin/'+(hat?'hat':'game'),{id:b.dataset[hat?'dhat':'dgame'],action:'delete'}).then(done)});
  app.querySelectorAll('[data-shat],[data-sgame]').forEach(b=>b.onclick=()=>{const hat=b.hasAttribute('data-shat'),id=b.dataset[hat?'shat':'sgame'],p=app.querySelector(`[data-p='${id}']`);api('/api/admin/'+(hat?'hat':'game'),{id,action:'edit',name:app.querySelector(`[data-n='${id}']`).value,price:p?+p.value:undefined}).then(done)})}
+/* login / signup screen styling (only injected once) */
+(function(){if(document.getElementById('rk-auth-style'))return;const st=document.createElement('style');st.id='rk-auth-style';st.textContent=`.rw-auth{max-width:440px;margin:0 auto;padding:18px 0 40px}
+.rw-hero{text-align:center;padding:6px 0 16px}
+.rw-logo{font-weight:900;font-size:46px;letter-spacing:3px;color:var(--ac);line-height:1;text-shadow:0 10px 34px rgba(91,75,255,.45)}
+.rw-tag{color:var(--mut);margin:10px 0 0;font-size:15px}
+.rw-pills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.rw-pills span{font-size:12px;background:var(--card);border:1px solid var(--bd);padding:5px 10px;border-radius:999px}
+.rw-card{padding:14px;margin:0;max-width:100%}
+.rw-fine{color:var(--mut);font-size:12px;text-align:center;margin:12px 0 0;line-height:1.4}
+.rw-list{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:8px}
+.rw-list li{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px}
+.rw-list li>span{font-size:24px;line-height:1;width:28px;text-align:center;flex:none}
+.rw-list b{display:block;font-size:14px}
+.rw-list small{display:block;color:var(--mut);font-size:12px;line-height:1.35;margin-top:2px}`;document.head.appendChild(st)})();
