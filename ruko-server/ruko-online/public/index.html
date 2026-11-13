@@ -34,7 +34,7 @@ h2{margin:6px 0 14px}.mut{color:var(--mut)}.err{color:#e5484d;min-height:20px;fo
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.chips button{padding:6px 10px}
 [data-dev=mobile] #pad{display:flex}
 [data-dev=desktop] main{max-width:1180px}[data-dev=desktop] .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}[data-dev=desktop] #hud{font-size:18px}
-[data-dev=mobile] main{padding-bottom:96px}[data-dev=mobile] #top nav{position:fixed;left:0;right:0;bottom:0;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--bd);z-index:6}[data-dev=mobile] #top nav button{flex:1}
+[data-dev=mobile] main{padding-bottom:88px}[data-dev=mobile] #top nav{position:fixed;left:0;right:0;bottom:0;gap:0;padding:5px 2px calc(5px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--bd);z-index:6}[data-dev=mobile] #top nav button{flex:1;min-width:0}
 #pad button{width:56px;height:56px;margin:2px;background:#fff6;color:#fff;border:0;font-size:20px;user-select:none}
 #pad .row{display:flex;justify-content:center}#jb{width:84px!important;height:84px!important;border-radius:50%!important}
 #chatw{position:absolute;top:calc(48px + env(safe-area-inset-top,0px));left:8px;width:min(340px,70vw);color:#fff;font-size:13px}
@@ -97,9 +97,9 @@ nav button{display:flex;align-items:center;gap:6px}nav .ic{font-size:16px;line-h
 [data-dev=mobile] #top{padding:8px 12px}
 [data-dev=mobile] #top #adm,[data-dev=mobile] #top #myp,[data-dev=mobile] #top #out{display:none}
 [data-dev=mobile] #top nav button:not([data-pri]){display:none}
-[data-dev=mobile] #top nav button[data-pri]{flex-direction:column;gap:2px;flex:1;padding:8px 2px}
-[data-dev=mobile] #top nav button[data-pri] .ic{font-size:19px}
-[data-dev=mobile] #top nav button[data-pri] .lb{font-size:10px}
+[data-dev=mobile] #top nav button[data-pri]{flex-direction:column;gap:1px;flex:1;min-width:0;overflow:hidden;padding:5px 1px;border-radius:8px}
+[data-dev=mobile] #top nav button[data-pri] .ic{font-size:18px;line-height:1.05}
+[data-dev=mobile] #top nav button[data-pri] .lb{font-size:9px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 [data-dev=mobile] button,[data-dev=mobile] select,[data-dev=mobile] input[type=button]{min-height:40px}
 [data-dev=mobile] h2{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:19px}
 [data-dev=mobile] main{padding-left:12px;padding-right:12px}
@@ -107,11 +107,11 @@ nav button{display:flex;align-items:center;gap:6px}nav .ic{font-size:16px;line-h
 </style></head><body>
 <header id="top"><span class="logo">RUKO</span><nav>
 <button data-r="" data-pri="1"><span class="ic">🏠</span><span class="lb">Home</span></button>
-<button data-r="catalog"><span class="ic">🛍️</span><span class="lb">Catalog</span></button>
-<button data-r="friends"><span class="ic">👥</span><span class="lb">Friends</span></button>
-<button data-r="messages"><span class="ic">✉️</span><span class="lb">Messages</span></button>
+<button data-r="catalog" data-pri="1"><span class="ic">🛍️</span><span class="lb">Catalog</span></button>
+<button data-r="friends" data-pri="1"><span class="ic">👥</span><span class="lb">Friends</span></button>
+<button data-r="messages" data-pri="1"><span class="ic">✉️</span><span class="lb">Messages</span></button>
 <button data-r="admin" id="adm" style="display:none"><span class="ic">🛠️</span><span class="lb">Admin</span></button>
-<button data-r="avatar"><span class="ic">🧑</span><span class="lb">Avatar</span></button>
+<button data-r="avatar" data-pri="1"><span class="ic">🧑</span><span class="lb">Avatar</span></button>
 <button data-r="settings"><span class="ic">⚙️</span><span class="lb">Settings</span></button>
 <button data-r="create" data-pri="1"><span class="ic">🧰</span><span class="lb">Create</span></button>
 <button id="more" data-pri="1"><span class="ic">☰</span><span class="lb">More</span></button>
