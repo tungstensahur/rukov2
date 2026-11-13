@@ -185,7 +185,15 @@ const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000
   if(p.y<(g.killY||-15))rsp();
   coins.forEach(c=>{if(!c.visible)return;c.rotation.z+=dt*3;if(Math.hypot(c.position.x-p.x,c.position.y-p.y-1.3,c.position.z-p.z)<1.8){c.visible=false;got+=5}});
   $('#gh').textContent='⏱ '+((t-ts)/1000|0)+'s   Coins: '+got;if(scUses)$('#svd').textContent='Score: '+SV.score;
-  PVT(t,dt);if(hasScr)SCtick(t,dt);gait+=dt*hs*1.15;const Lb=pm.userData.l,sa=Math.min(1,hs/(sp*.9))*.75,tg=on&&hs>.3?Math.sin(gait)*sa:0,kq=Math.min(1,16*dt);lsw+=(tg-lsw)*kq;lup+=((on?0:1)-lup)*kq;Lb.ll.rotation.x=lsw;Lb.rl.rotation.x=-lsw;Lb.la.rotation.x=-lsw*(1-lup)-2.4*lup;Lb.ra.rotation.x=t-atk<220?-1.5:(lsw*(1-lup)-2.4*lup);pm.position.set(p.x,p.y,p.z);
+  PVT(t,dt);if(hasScr)SCtick(t,dt);const Lb=pm.userData.l,sh=Math.min(1,hs/Math.max(1,sp)),kq=1-Math.exp(-14*dt),br=Math.sin(t*.0019);
+gait+=dt*hs*2.3;let tll=0,trl=0,tla=0,tra=0,tlt=0,bob=0;
+if(!gr){if(p.vy>1){tll=-.45;trl=.35;tla=-2.05;tra=-2.25;tlt=.12}else{tll=.32;trl=-.5;tla=-1.15;tra=-1.15;tlt=-.07}}
+else if(sh>.12){const sg=Math.sin(gait)*sh;tll=sg*.95;trl=-sg*.95;tla=-sg*1.1-.1;tra=sg*1.1-.1;tlt=.16*sh;bob=Math.abs(Math.cos(gait))*.06*sh}
+else{tll=br*.03;trl=-br*.03;tla=-.12+br*.06;tra=-.12-br*.06;tlt=br*.012;bob=br*.018}
+if(t-atk<220){tra=-1.5;tlt*=.4}
+Lb.ll.rotation.x+=(tll-Lb.ll.rotation.x)*kq;Lb.rl.rotation.x+=(trl-Lb.rl.rotation.x)*kq;Lb.la.rotation.x+=(tla-Lb.la.rotation.x)*kq;Lb.ra.rotation.x+=(tra-Lb.ra.rotation.x)*kq;
+if(t-atk<220)Lb.ra.rotation.x=-1.5;
+pm.rotation.order='YXZ';pm.rotation.x+=(tlt-pm.rotation.x)*kq;pm.position.set(p.x,p.y+bob,p.z);
   const ca=1-Math.exp(-14*dt),cb=1-Math.exp(-9*dt);cam3.x+=(p.x-cam3.x)*ca;cam3.z+=(p.z-cam3.z)*ca;cam3.y+=(p.y-cam3.y)*cb;
   const CP=camPose();C.position.set(CP.x,CP.y,CP.z);C.lookAt(CP.x+CP.fx,CP.y+CP.fy,CP.z+CP.fz);
   if(rr&&t-hb>100){hb=t;rr.presence({x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+pm.rotation.y.toFixed(2),gear:me.gear||{},av:me.av||null}).catch(()=>{})}Object.values(rem).forEach(o=>{const m=o.m;m.position.x+=(o.t.x-m.position.x)*.3;m.position.y+=(o.t.y-m.position.y)*.3;m.position.z+=(o.t.z-m.position.z)*.3;m.rotation.y=o.t.r});R.render(S,C)};
