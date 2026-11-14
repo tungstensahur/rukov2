@@ -214,7 +214,7 @@ http.createServer=function(handler){
    try{
     let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
     // The late overlays are added here, so the page file itself stays untouched.
-    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js'].forEach(name=>{
+    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js'].forEach(name=>{
      if(html.indexOf(name)>=0)return;
      // The version is the file's own timestamp, so a changed overlay is never served from cache.
      const hv=Math.round(fs.statSync(path.join(__dirname,'public','js',name)).mtimeMs);
