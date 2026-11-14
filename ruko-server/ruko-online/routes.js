@@ -202,8 +202,79 @@ function analytics(c){
  return send(res,200,{days,games,items,totals,series,name:me.name});
 }
 
+/* ---------- Pictures and sounds for games ----------
+   Uploads are small by design: the browser shrinks pictures before sending them, and everything
+   here is capped so one game cannot fill the data store. Reading a file back needs no login,
+   because the game itself loads it through an <img> or an <audio> tag. */
+const MAXASSETS=8,MAXIMG=250000,MAXSND=320000,MAXTOTAL=900000;
+const ASSET_RE=/^data:(image\/(?:png|jpeg|webp|gif)|audio\/(?:mpeg|mp3|wav|ogg|webm));base64,([A-Za-z0-9+/=]+)$/;
+const newAssetId=()=>'a'+Math.random().toString(36).slice(2,10);
+function ownsGame(D,me,gid){
+ const g=(D.games||[]).find(x=>x.id===gid);
+ if(!g)return {error:'No such game.',code:404};
+ if((g.creator||'').toLowerCase()!==me.name.toLowerCase()&&!me.admin)return {error:'That game is not yours.',code:403};
+ return {g};
+}
+function assets(c){
+ const {req,res,p,b,me,send,need,D,save}=c;
+ if(p==='/api/assets'){
+  if(!me)return need();
+  const gid=String(new URL(req.url,'http://x').searchParams.get('game')||'');
+  const box=(D.assets||{})[gid]||{};
+  return send(res,200,{assets:Object.keys(box).map(id=>({id,k:box[id].k,n:box[id].n||'',size:(box[id].d||'').length}))});
+ }
+ if(p==='/api/assets/upload'){
+  if(!me)return need();
+  const gid=String(b.game||'');
+  const own=ownsGame(D,me,gid);
+  if(own.error)return send(res,own.code||404,{error:own.error});
+  const kind=b.kind==='snd'?'snd':'img';
+  const data=String(b.data||'');
+  const m=ASSET_RE.exec(data);
+  if(!m)return send(res,400,{error:'That file type is not allowed.'});
+  if((m[1].indexOf('image/')===0)!==(kind==='img'))return send(res,400,{error:'That file does not belong in this slot.'});
+  if(data.length>(kind==='snd'?MAXSND:MAXIMG))return send(res,413,{error:kind==='snd'?'That sound is too big (about 250 KB max).':'That picture is too big.'});
+  const box=D.assets=D.assets||{};
+  const mine=box[gid]=box[gid]||{};
+  const ids=Object.keys(mine);
+  if(ids.length>=MAXASSETS)return send(res,400,{error:'This game already has '+MAXASSETS+' files. Remove one first.'});
+  const total=ids.reduce((a,id)=>a+(mine[id].d||'').length,0);
+  if(total+data.length>MAXTOTAL)return send(res,400,{error:'This game is out of upload space.'});
+  let id;do{id=newAssetId()}while(mine[id]);
+  mine[id]={k:kind,m:m[1],n:clean(b.name).slice(0,40),d:m[2],at:Date.now()};
+  save();
+  return send(res,200,{id,url:'/api/asset/'+encodeURIComponent(gid)+'/'+id});
+ }
+ if(p==='/api/assets/delete'){
+  if(!me)return need();
+  const gid=String(b.game||'');
+  const own=ownsGame(D,me,gid);
+  if(own.error)return send(res,own.code||404,{error:own.error});
+  const box=(D.assets||{})[gid];
+  const id=String(b.id||'');
+  if(!box||!box[id])return send(res,404,{error:'No such file.'});
+  delete box[id];
+  if(!Object.keys(box).length)delete D.assets[gid];
+  save();
+  return send(res,200,{ok:1});
+ }
+ return serveAsset(c);
+}
+// Reading a file back: no login needed, cached forever (ids never change).
+function serveAsset(c){
+ const {res,D}=c;
+ const m=/^\/api\/asset\/([\w-]{1,40})\/([a-z0-9]{4,14})$/.exec(c.p);
+ if(!m)return false;
+ const box=(D.assets||{})[m[1]]||{},a=box[m[2]];
+ if(!a){res.writeHead(404,{'content-type':'text/plain'});res.end('Not found');return true}
+ res.writeHead(200,{'content-type':a.m,'cache-control':'public, max-age=31536000, immutable'});
+ res.end(Buffer.from(a.d||'','base64'));
+ return true;
+}
+
 module.exports=function(ctx){
  const p=ctx.p;
+ if(p.indexOf('/api/asset')===0)return assets(ctx);
  if(p==='/api/daily')return daily(ctx);
  if(p==='/api/reports')return reports(ctx);
  if(p==='/api/stats')return stats(ctx);
