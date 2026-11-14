@@ -1,14 +1,13 @@
 /* ---------- v30: wear up to three head accessories ---------- */
 /* Head items used to be one at a time. This file lets you pick up to three at once: each one is
    stored in its own little pocket (head, head2, head3), so the profile page, other players and the
-   catalog all keep working without special cases. It also nudges the extra hats apart a little so
-   three of them do not sit in exactly the same spot. */
+   catalog all keep working without special cases. Every hat keeps the exact spot it has when it is
+   the only one worn, so nothing is drawn off to the side. */
 (function(){
  if(window.RKHEAD30)return;
  window.RKHEAD30=1;
 
  const SLOT=['head','head2','head3'];
- const OFF=[[0,0,0],[.17,.05,0],[-.17,.10,0]];   /* a small spread so stacked hats stay visible */
  const MAX=3;
 
  const headIds=me=>SLOT.map(s=>((me&&me.gear)||{})[s]).filter(Boolean);
@@ -46,20 +45,6 @@
     if(ov[slot]!=null)out.push(ov[slot]);
    }
    return typeof prev=='function'?out:out;
-  };
- }catch(e){}
-
- /* spread the head hats a little so three of them can be seen at once */
- try{
-  const prevMP=window.makePlayer;
-  window.makePlayer=function(hat,av,nm){
-   const g=prevMP(hat,av,nm);
-   try{
-    const b=(typeof SL!=='undefined'&&SL.head)||[0,3.1,0];
-    const heads=g.children.filter(c=>c&&c.isGroup&&Math.abs(c.position.y-b[1])<.02&&Math.abs(c.position.x-b[0])<.02&&Math.abs(c.position.z-b[2])<.02);
-    heads.forEach((c,i)=>{const o=OFF[i];if(!o||i===0)return;c.position.x+=o[0];c.position.y+=o[1];c.position.z+=o[2]});
-   }catch(e){}
-   return g;
   };
  }catch(e){}
 
