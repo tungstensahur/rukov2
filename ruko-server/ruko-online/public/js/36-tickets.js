@@ -26,6 +26,27 @@
   b.textContent='🎟️ '+T.tickets;
  };
 
+ /* A quiet corner note for earned Tickets: the red bar in the middle is for errors and results you
+    must not miss, and getting paid for playing should not interrupt what you are doing. */
+ const note=msg=>{
+  let box=document.getElementById('tktoast');
+  if(!box){
+   box=document.createElement('div');
+   box.id='tktoast';
+   box.style.cssText='position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none';
+   document.body.appendChild(box);
+  }
+  const el=document.createElement('div');
+  el.textContent=msg;
+  el.style.cssText='background:#1e2230;color:#ffd23f;border:1px solid #ffd23f66;border-radius:12px;padding:10px 14px;font:600 14px system-ui,-apple-system,sans-serif;box-shadow:0 6px 20px #0009;opacity:0;transform:translateY(10px);transition:opacity .25s ease,transform .25s ease';
+  box.appendChild(el);
+  requestAnimationFrame(()=>{el.style.opacity='1';el.style.transform='translateY(0)'});
+  setTimeout(()=>{
+   el.style.opacity='0';el.style.transform='translateY(10px)';
+   setTimeout(()=>el.remove(),320);
+  },2600);
+ };
+
  const mins=ms=>{
   const s=Math.max(0,Math.round((ms||0)/1000));
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
@@ -124,7 +145,7 @@
    const gave=r.gave|0;
    T=Object.assign(T,r);
    put();
-   if(gave)toast('🎟️ +'+gave+' Tickets for playing!');
+   if(gave)note('🎟️ +'+gave+' Tickets for playing!');
   }).catch(()=>{});
  },1000);
 
