@@ -134,6 +134,7 @@ main:has(#stu){max-width:1700px;padding-left:10px;padding-right:10px}
  #stu>.stu-bar::-webkit-scrollbar{display:none}
  #stu>.stu-bar button,#stu>.stu-bar select{white-space:nowrap;flex:none}
  #stu #rkvp{display:none}
+ #rk27chip{display:none}
 }
 @media(max-width:980px) and (orientation:landscape){
  #stu{height:100dvh}
