@@ -44,6 +44,7 @@ const TRIGGER_CASES="else if(t=='release')H={t,o:sUid(h.o)};else if(t=='near')H=
 const UID_OLD="test(String(v))?String(v):''";
 const UID_NEW="test(String(v==null?'':v))?String(v==null?'':v):''";
 const SERVER_MARKS=[
+ ["D.plays[gid]=(D.plays[gid]||0)+1;","try{require('./routes.js').noteVisit(D,gid)}catch(e){}",'after'],
  [UID_OLD,UID_NEW,'replace'],
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES,'before'],
  ["else if(t=='chatCmd')H={t,m:sStr(h.m,30)};",TRIGGER_CASES,'after']
@@ -70,7 +71,7 @@ const file=path.join(__dirname,'server.js');
 let src=fs.readFileSync(file,'utf8');
 const MARK=" if(p=='/api/profile'){";
 if(src.indexOf(MARK)<0)throw new Error('boot.js: could not find the route marker in server.js');
-src=src.replace(MARK," if(p=='/api/reports'||p=='/api/daily'){return require('./routes.js')({req,res,p,b,me,send,need,D,save,staff});}\n"+MARK);
+src=src.replace(MARK," if(p=='/api/reports'||p=='/api/daily'||p=='/api/stats'||p=='/api/glike'||p=='/api/comments'||p=='/api/analytics'){return require('./routes.js')({req,res,p,b,me,send,need,D,save,staff,PRICE});}\n"+MARK);
 SERVER_MARKS.forEach(([mark,hook,where])=>{
  const out=splice(src,mark,hook,where);
  if(out===null){console.error('boot.js: block sanitizer marker missing ('+mark.slice(0,26)+'), saving without that patch');return}
