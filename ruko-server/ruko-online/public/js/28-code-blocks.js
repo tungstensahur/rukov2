@@ -95,6 +95,22 @@
   timerReset(){t0=performance.now()},
   timerVar(X,b){setV(X,b.v,(performance.now()-t0)/1000)},
   hudMix(X,b){const el=hudEl();if(!el)return;el.textContent=(b.m?b.m+' ':'')+fmt(getV(X,b.v))},
+  // "Grow or shrink an object" used to multiply whatever size the object had right then, so a
+  // grow followed by "back to 100%" never returned it to normal. Remember the starting size.
+  scale(X,b){
+   const e=b.o&&X.ent?X.ent[b.o]:null;if(!e)return;
+   const m=e.mesh||(e.q&&e.q.mesh);if(!m)return;
+   const q=e.q,to=(+b.p||100)/100,dur=Math.max(0,+b.s||0)*1000;
+   if(!m.userData.rkS0)m.userData.rkS0=[m.scale.x||1,m.scale.y||1,m.scale.z||1];
+   const s0=m.userData.rkS0,q0=q?[q.sx,q.th,q.sz]:null,t0=performance.now();
+   const step=()=>{
+    const k=dur?Math.min(1,(performance.now()-t0)/dur):1,f=1+(to-1)*k;
+    if(q){q.sx=q0[0]*f;q.sz=q0[2]*f;q.th=q0[1]*f;m.scale.set(f,f,f);m.position.y=q.y-q.th/2}
+    else m.scale.set(s0[0]*f,s0[1]*f,s0[2]*f);
+    if(k<1&&m.parent!==null)requestAnimationFrame(step);
+   };
+   step();
+  },
   whileVar(X,b,run){if(!cond(X,b.c))return;if(!run||!run.stack)return;run.stack.push({list:b.b||[],i:0,wl:b.c})}
  };
 
@@ -106,6 +122,15 @@
     if(f){try{f(X||{},b,run,now)}catch(e){}return}
     return prev(b,run,now,X);
    };
+  }
+ }catch(e){}
+
+ // The on-screen value block (from the 24 pack) reads values through SKX.val, which only knew a
+ // few of them, so score, variables and seconds always showed 0. Answer those here first.
+ try{
+  if(typeof SKX!=='undefined'&&SKX&&typeof SKX.val==='function'){
+   const pv=SKX.val.bind(SKX);
+   SKX.val=function(v,X){const x=X||window.__RKX;if(x&&(isVar(v)||v==='time'))return getV(x,v);try{return pv(v,x)}catch(e){return 0}};
   }
  }catch(e){}
 
