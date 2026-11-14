@@ -202,6 +202,16 @@ function analytics(c){
  return send(res,200,{days,games,items,totals,series,name:me.name});
 }
 
+// The creator's own unpublished games, newest first. Only the owner can list them.
+function drafts(c){
+ const {req,res,me,send,need,D}=c;
+ if(!me)return need();
+ const mine=(D.games||[]).filter(g=>g.draft&&(g.creator||'').toLowerCase()===me.name.toLowerCase())
+  .sort((a,b)=>(b.at||0)-(a.at||0))
+  .map(g=>({id:g.id,name:g.name||'Untitled',at:g.at||0,objs:(g.objs||[]).length,scripts:(g.scripts||[]).length,ht:!!g.thumb}));
+ return send(res,200,{drafts:mine});
+}
+
 /* ---------- Pictures and sounds for games ----------
    Uploads are small by design: the browser shrinks pictures before sending them, and everything
    here is capped so one game cannot fill the data store. Reading a file back needs no login,
@@ -280,6 +290,7 @@ module.exports=function(ctx){
  if(p==='/api/stats')return stats(ctx);
  if(p==='/api/glike')return glike(ctx);
  if(p==='/api/comments')return comments(ctx);
+ if(p==='/api/drafts')return drafts(ctx);
  if(p==='/api/analytics')return analytics(ctx);
  return reports(ctx);
 };
