@@ -29,7 +29,10 @@ const CORE_MARKS=[
  ["SV={score:0,A:0,B:0,C:0},","SV={score:0,A:0,B:0,C:0,D:0,E:0,F:0},",'replace'],
  ["(v=='A'||v=='B'||v=='C')?SV[v]","(/^[A-F]$/.test(v))?(SV[v]||0)",'replace'],
  // A "repeat while" frame: when its list runs out, start again while the condition holds.
- ["if(f.i>=f.list.length){if(f.rep&&--f.n>0)","if(f.i>=f.list.length){if(f.wl){if(!scCond(f.wl)||(f.wc=(f.wc||0)+1)>500){run.stack.pop();continue}f.i=0;continue}if(f.rep&&--f.n>0)",'replace']
+ ["if(f.i>=f.list.length){if(f.rep&&--f.n>0)","if(f.i>=f.list.length){if(f.wl){if(!scCond(f.wl)||(f.wc=(f.wc||0)+1)>500){run.stack.pop();continue}f.i=0;continue}if(f.rep&&--f.n>0)",'replace'],
+ // The tracer drawn the instant you fire predicts the shot locally; it reaches as far as the weapon
+ // does, and a shotgun shows its pellets instead of a single line.
+ ["if(d.t=='gun'){const L=Math.min(d.rng,45);tracer([p.x,p.y+1.6,p.z],[p.x+dx*L,p.y+1.6+A.s*L,p.z+dz*L])}","if(d.t=='gun'){const L=Math.min(d.rng,d.m=='sniper'?170:45),np=Math.max(1,Math.min(8,d.pel|0||1));for(let k=0;k<np;k++){const a=np>1?(Math.random()-.5)*(d.spr||0)*Math.PI/180*.8:0,ax=dx*Math.cos(a)-dz*Math.sin(a),az=dx*Math.sin(a)+dz*Math.cos(a);tracer([p.x,p.y+1.6,p.z],[p.x+ax*L,p.y+1.6+A.s*L,p.z+az*L])}}",'replace']
 ];
 let coreCache=null;
 function coreSource(){
@@ -242,6 +245,15 @@ SERVER_MARKS.forEach(([mark,hook,where])=>{
  if(out===null){console.error('boot.js: block sanitizer marker missing ('+mark.slice(0,26)+'), saving without that patch');return}
  src=out;
 });
+// PvP: every shot is settled in one place, pvpweapons.js, so each weapon model behaves the way its
+// picture and description say. The block this replaces decided all guns with one formula.
+const PVP_A="if(wd.t=='melee'){",PVP_B="if(fx.length)bc(r,{t:'fx',peer:String(b.peer),w:fx});";
+const PVP_CALL="const PW=require('./pvpweapons.js').shoot({ps,wd,dx,dz,sl,pv,targets,ray:rayBox3});\n   for(const[k,d]of PW.dmg)dmg.set(k,(dmg.get(k)||0)+d);\n   for(const f of PW.fx)fx.push(f);\n   ";
+{
+ const i=src.indexOf(PVP_A),j=src.indexOf(PVP_B,i);
+ if(i<0||j<0)console.error('boot.js: pvp shot block not found, weapons keep the old rules');
+ else src=src.slice(0,i)+PVP_CALL+src.slice(j);
+}
 const m=new Module(file,module);
 m.filename=file;
 m.paths=Module._nodeModulePaths(__dirname);
