@@ -1,10 +1,25 @@
-// Reports and the daily login bonus.
+// Reports, the daily login bonus, creator stats, game likes, comments and analytics.
 // boot.js hooks this module into the game server's own request handler, so it can use the
 // server's live data store, user records and helpers without server.js itself being edited.
 const DAY=864e5,MAXREASON=300,MAXREPORTS=500,MAXOPEN=10;
+const MAXCOMMENT=300,MAXPERITEM=60,MAXTEXT=60;
 const dayOf=ms=>new Date(ms).toISOString().slice(0,10);
 const today=()=>dayOf(Date.now()),yesterday=()=>dayOf(Date.now()-DAY);
 const rewardFor=n=>10+5*(Math.min(Math.max(n,1),7)-1);
+const likesOf=(D,id)=>((D.likes||{})[id]||[]).length;
+const playsOf=(D,id)=>((D.plays||{})[id]|0);
+const clean=s=>String(s==null?'':s).replace(/\s+/g,' ').trim();
+
+// Visits per game per day, so creators can see the last week. Called from the server's own
+// play counter (boot.js splices a call there); the very next save() stores it.
+function noteVisit(D,gid){
+ if(!D||!gid)return;
+ const vis=D.meta.visits=D.meta.visits||{},g=vis[gid]=vis[gid]||{};
+ const d=today();
+ g[d]=(g[d]|0)+1;
+ const cutoff=dayOf(Date.now()-29*DAY);
+ for(const k in g)if(k<cutoff)delete g[k];
+}
 
 function dailyStatus(D,me){
  const cfg=D.meta.streak||{},s=me.streak||{last:'',n:0},t=today();
@@ -93,6 +108,110 @@ function daily(c){
  return send(res,200,{ok:1,day:s.n,reward,coins:me.coins,total:me.coins,item,status:dailyStatus(D,me)});
 }
 
-module.exports=function(ctx){return ctx.p==='/api/daily'?daily(ctx):reports(ctx)};
+// Every game's likes and plays, plus running totals for each creator (their games' likes and
+// plays, and the likes their catalog items collected). Small enough to fetch in one go.
+function stats(c){
+ const {req,res,me,send,D,PRICE}=c;
+ const comments=D.meta.comments||{};
+ const gs={},users={};
+ const bucket=n=>(users[n]=users[n]||{visits:0,likes:0,games:0,itemLikes:0,sales:0});
+ for(const g of D.games||[]){
+  const lk=likesOf(D,g.id),pl=playsOf(D,g.id),cm=(comments['game:'+g.id]||[]).length;
+  gs[g.id]={likes:lk,plays:pl,comments:cm};
+  const u=bucket(g.creator||'Ruko');
+  u.games++;u.visits+=pl;u.likes+=lk;
+ }
+ const items={};
+ for(const id in (PRICE||{}))items[id]={id,creator:'Ruko'};
+ for(const h of D.hats||[])items[h.id]={id:h.id,creator:h.creator||'Ruko'};
+ for(const id in items){
+  const lk=likesOf(D,id),sales=Math.max(0,(D.sales||{})[id]|0);
+  const u=bucket(items[id].creator);
+  u.itemLikes+=lk;u.likes+=lk;u.sales+=sales;
+ }
+ const liked=me?Object.keys(gs).filter(id=>((D.likes||{})[id]||[]).includes(me.name)):[];
+ return send(res,200,{games:gs,users,liked});
+}
+
+function glike(c){
+ const {req,res,b,me,send,need,D,save}=c;
+ if(!me)return need();
+ if(req.method!=='POST')return send(res,405,{error:'Use POST.'});
+ const id=String(b.id||'');
+ const g=(D.games||[]).find(x=>x.id===id)||['g1','g2','g3'].map(x=>({id:x})).find(x=>x.id===id);
+ if(!g)return send(res,404,{error:'No such game.'});
+ const L=D.likes[id]=D.likes[id]||[],i=L.indexOf(me.name);
+ if(i>=0)L.splice(i,1);else L.push(me.name);
+ save();
+ return send(res,200,{n:L.length,liked:i<0});
+}
+
+function comments(c){
+ const {req,res,b,me,send,need,D,save,staff,PRICE}=c;
+ if(!me)return need();
+ if(req.method!=='POST'){
+  const q=new URL(req.url,'http://x').searchParams;
+  const kind=q.get('kind')==='game'?'game':'item',id=String(q.get('id')||'').slice(0,60);
+  const list=((D.meta.comments||{})[kind+':'+id]||[]);
+  return send(res,200,{kind,id,count:list.length,list:list.slice(-40).map(m=>({id:m.id,by:m.by,text:m.text,at:m.at,mine:m.by===me.name,staff:!!staff(me)}))});
+ }
+ const kind=b.kind==='game'?'game':'item';
+ const id=String(b.id||'').slice(0,60);
+ if(!id)return send(res,400,{error:'Nothing to comment on.'});
+ const okTarget=kind==='game'?(D.games||[]).some(g=>g.id===id):((D.hats||[]).some(h=>h.id===id)||!!(PRICE&&id in PRICE));
+ if(!okTarget)return send(res,404,{error:'That is not in Ruko anymore.'});
+ const store=D.meta.comments=D.meta.comments||{};
+ const key=kind+':'+id;
+ const list=store[key]=store[key]||[];
+ if(b.del){
+  const i=list.findIndex(m=>m.id===String(b.del));
+  if(i<0)return send(res,404,{error:'That comment is gone.'});
+  if(list[i].by!==me.name&&!staff(me))return send(res,403,{error:'That is not your comment.'});
+  list.splice(i,1);save();
+  return send(res,200,{ok:1,count:list.length,list:list.slice(-40).map(m=>({id:m.id,by:m.by,text:m.text,at:m.at,mine:m.by===me.name,staff:!!staff(me)}))});
+ }
+ if(me.muted)return send(res,403,{error:'You are muted.'});
+ const now=Date.now();
+ if(now-(me.lastComment||0)<2500)return send(res,429,{error:'One comment at a time, please.'});
+ const text=clean(b.text).slice(0,MAXCOMMENT);
+ if(text.length<1)return send(res,400,{error:'Write something first.'});
+ if(list.length>=MAXPERITEM)list.shift();
+ const m={id:'m'+now.toString(36)+Math.random().toString(36).slice(2,6),by:me.name,text,at:now};
+ list.push(m);me.lastComment=now;save();
+ return send(res,200,{ok:1,comment:{id:m.id,by:m.by,text:m.text,at:m.at,mine:true,staff:!!staff(me)},count:list.length,list:list.slice(-40).map(x=>({id:x.id,by:x.by,text:x.text,at:x.at,mine:x.by===me.name,staff:!!staff(me)}))});
+}
+
+// A creator's own numbers: last 7 days of visits per game, likes, comments and item sales.
+function analytics(c){
+ const {req,res,me,send,need,D}=c;
+ if(!me)return need();
+ const vis=D.meta.visits||{},comments=D.meta.comments||{};
+ const days=[];for(let i=6;i>=0;i--)days.push(dayOf(Date.now()-i*DAY));
+ const mine=(D.games||[]).filter(g=>(g.creator||'').toLowerCase()===me.name.toLowerCase());
+ const games=mine.map(g=>{
+  const series=days.map(d=>((vis[g.id]||{})[d]|0));
+  return {id:g.id,name:g.name,genre:g.genre||'Obby',plays:playsOf(D,g.id),likes:likesOf(D,g.id),
+   comments:(comments['game:'+g.id]||[]).length,today:series[series.length-1],week:series.reduce((a,b)=>a+b,0),series};
+ });
+ const items=(D.hats||[]).filter(h=>(h.creator||'').toLowerCase()===me.name.toLowerCase()).map(h=>({id:h.id,name:h.name,likes:likesOf(D,h.id),sales:Math.max(0,(D.sales||{})[h.id]|0),comments:(comments['item:'+h.id]||[]).length}));
+ games.sort((a,b)=>b.week-a.week||b.plays-a.plays);
+ const series=days.map((d,i)=>games.reduce((a,g)=>a+g.series[i],0));
+ const totals={plays:games.reduce((a,g)=>a+g.plays,0),likes:games.reduce((a,g)=>a+g.likes,0),
+  comments:games.reduce((a,g)=>a+g.comments,0),week:series.reduce((a,b)=>a+b,0),
+  games:games.length,itemLikes:items.reduce((a,h)=>a+h.likes,0),sales:items.reduce((a,h)=>a+h.sales,0)};
+ return send(res,200,{days,games,items,totals,series,name:me.name});
+}
+
+module.exports=function(ctx){
+ const p=ctx.p;
+ if(p==='/api/daily')return daily(ctx);
+ if(p==='/api/reports')return reports(ctx);
+ if(p==='/api/stats')return stats(ctx);
+ if(p==='/api/glike')return glike(ctx);
+ if(p==='/api/comments')return comments(ctx);
+ if(p==='/api/analytics')return analytics(ctx);
+ return reports(ctx);
+};
 module.exports.rewardFor=rewardFor;
 module.exports.dailyStatus=dailyStatus;
+module.exports.noteVisit=noteVisit;
