@@ -145,7 +145,7 @@ const BLOCK_CASES2=[
 // Drafts: a game can be saved without being published. A draft is invisible to everyone else,
 // cannot be opened or joined by another player, and the creator can publish it later.
 const DRAFT_F="const f={name:String(b.name||'Untitled')";
-const DRAFT_F_NEW="const f={draft:!!b.draft,name:String(b.name||'Untitled')";
+const DRAFT_F_NEW="const f={saveCoins:!!b.saveCoins,draft:!!b.draft,name:String(b.name||'Untitled')";
 const DRAFT_LIST="games:D.games.map(g=>({...g,";
 const DRAFT_LIST_NEW="games:D.games.filter(g=>!g.draft).map(g=>({...g,";
 const GAME_GET="if(p=='/api/game'){const g=D.games.find(x=>x.id==new URL(req.url,'http://x').searchParams.get('id'));return g?";
@@ -214,7 +214,7 @@ http.createServer=function(handler){
    try{
     let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
     // The late overlays are added here, so the page file itself stays untouched.
-    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js'].forEach(name=>{
+    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js','35-game-saves.js'].forEach(name=>{
      if(html.indexOf(name)>=0)return;
      // The version is the file's own timestamp, so a changed overlay is never served from cache.
      const hv=Math.round(fs.statSync(path.join(__dirname,'public','js',name)).mtimeMs);
