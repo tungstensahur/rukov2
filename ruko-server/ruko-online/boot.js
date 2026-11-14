@@ -23,10 +23,10 @@ const splice=(src,mark,text,where)=>{
 // one hook for its handle and another, later, for the list of players in the server.
 const CORE='/js/00-boot-and-core.js';
 const CORE_MARKS=[
- ["$('#ex').onclick=()=>{","window.RKPLAY={respawn:()=>{try{rsp()}catch(e){}},exit:()=>{try{document.getElementById('ex').click()}catch(e){}},game:g.name,id:g.id,solo:!srv};\n",'before'],
+ ["$('#ex').onclick=()=>{","window.RKPLAY={respawn:()=>{try{rsp()}catch(e){}},exit:()=>{try{document.getElementById('ex').click()}catch(e){}},game:g.name,id:g.id,solo:!srv,dbg:{run:(b,steps)=>{try{const r={stack:[],wait:0};scExec(b,r,performance.now());if(steps)for(let i=0;i<steps;i++)scStep(r,performance.now());return 'ok'}catch(e){return 'ERR '+e.message}},state:()=>({SV,ent,got,hp:ST&&ST.hp,keys:Object.assign({},keys),p:{x:p.x,y:p.y,z:p.z,vy:p.vy},ph:{spd:ph.spd,jmp:ph.jmp,grav:ph.grav},kids:S?S.children.length:0})}};\n",'before'],
  ["rr=r;","if(rr.onPeers){try{rr.onPeers(function(ps){window.RKROSTER=(ps&&ps.peers)||[];try{dispatchEvent(new Event('rk-roster'))}catch(e){}})}catch(e){}}",'after'],
  // Six variables instead of three, so the new code blocks have room to work.
- ["const SV={score:0,A:0,B:0,C:0}","const SV={score:0,A:0,B:0,C:0,D:0,E:0,F:0}",'replace'],
+ ["SV={score:0,A:0,B:0,C:0},","SV={score:0,A:0,B:0,C:0,D:0,E:0,F:0},",'replace'],
  ["(v=='A'||v=='B'||v=='C')?SV[v]","(/^[A-F]$/.test(v))?(SV[v]||0)",'replace'],
  // A "repeat while" frame: when its list runs out, start again while the condition holds.
  ["if(f.i>=f.list.length){if(f.rep&&--f.n>0)","if(f.i>=f.list.length){if(f.wl){if(!scCond(f.wl)||(f.wc=(f.wc||0)+1)>500){run.stack.pop();continue}f.i=0;continue}if(f.rep&&--f.n>0)",'replace']
@@ -131,6 +131,7 @@ const BLOCK_CASES3=[
 const SERVER_MARKS=[
  ["['score','A','B','C']","['score','A','B','C','D','E','F']",'replace-all'],
  ["['A','B','C']","['A','B','C','D','E','F']",'replace-all'],
+ ["list.slice(0,80)","list.slice(0,300)",'replace'],
  ["D.plays[gid]=(D.plays[gid]||0)+1;","try{require('./routes.js').noteVisit(D,gid)}catch(e){}",'after'],
  // Uploaded sounds are bigger than any other request, so the body reader gets a bigger ceiling.
  ["if(s.length>400000){no();req.destroy()}","if(s.length>1048576){no();req.destroy()}",'replace'],
