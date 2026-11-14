@@ -43,11 +43,20 @@ const TRIGGER_CASES="else if(t=='release')H={t,o:sUid(h.o)};else if(t=='near')H=
 // which then pointed at no object and showed up as a missing object in the editor.
 const UID_OLD="test(String(v))?String(v):''";
 const UID_NEW="test(String(v==null?'':v))?String(v==null?'':v):''";
+// Site chat, in-game chat and direct messages each build their text the same way. The filter runs
+// straight after that, so a blocked message is never stored and never sent to anyone else.
+const FILTER_HOOK="if(require('./chatfilter.js').blocked(text))return send(res,200,{ok:1,filtered:1});";
+const CHAT_MARKS=[
+ "const text=String(b.text||'').trim().slice(0,200);if(!text)return send(res,400,{error:'Empty message.'});",
+ "const text=String(b.text||'').trim().slice(0,160);if(!text)return send(res,400,{error:'Empty message.'});",
+ "const text=String(b.text||'').trim().slice(0,500);if(!text)return send(res,400,{error:'Empty message.'});"
+];
 const SERVER_MARKS=[
  ["D.plays[gid]=(D.plays[gid]||0)+1;","try{require('./routes.js').noteVisit(D,gid)}catch(e){}",'after'],
  [UID_OLD,UID_NEW,'replace'],
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES,'before'],
- ["else if(t=='chatCmd')H={t,m:sStr(h.m,30)};",TRIGGER_CASES,'after']
+ ["else if(t=='chatCmd')H={t,m:sStr(h.m,30)};",TRIGGER_CASES,'after'],
+ ...CHAT_MARKS.map(mark=>[mark,FILTER_HOOK,'after'])
 ];
 
 const posts=require('./posts.js'),descs=require('./descs.js');
