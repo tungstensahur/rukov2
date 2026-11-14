@@ -38,12 +38,19 @@
  addEventListener('hashchange',stopAll);
  addEventListener('pagehide',stopAll);
 
- // If a game is left some other way, its renderer goes with it and the canvas disappears from the
- // page, so anything still making noise at that point is stopped as well.
- let sawCanvas=false;
+ // A game can also be left some other way: back button, the editor's "Test" session ending, or a
+ // route the address bar never hears about. The game screen is the thing that actually goes away,
+ // so while anything is still sounding, check that it is still on screen. The editor keeps a
+ // canvas of its own, which is why this looks at the game screen and not just any canvas.
+ const inGame=()=>{
+  const g=document.getElementById('game');
+  if(!g||g.style.display==='none')return false;
+  return !!g.querySelector('canvas');
+ };
+ let sawGame=false;
  setInterval(()=>{
   if(!live.size)return;
-  if(document.querySelector('canvas'))sawCanvas=true;
-  else if(sawCanvas)stopAll();
+  if(inGame())sawGame=true;
+  else if(sawGame)stopAll();
  },400);
 })();
