@@ -1,21 +1,21 @@
 /* ---------- v22: game likes, comments, creator stats and analytics ---------- */
-let ST=null,STP=null,STT=0,PBUSY=0;
+let RKST0=null,RKSP=null,RKST=0,RKBUSY=0;
 const rk$=id=>document.getElementById(id);
 const rkEsc=typeof esc==='function'?esc:s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function rkAgo(t){if(!t)return '';const s=Math.max(1,Math.round((Date.now()-t)/1000));if(s<60)return 'just now';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';const d=Math.round(s/86400);return d==1?'yesterday':d+'d ago'}
 const rkNum=n=>{n=n|0;return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)};
 function rkStats(force){
- if(ST&&!force&&Date.now()-STT<20000)return Promise.resolve(ST);
- if(STP)return STP;
- STP=Promise.race([api('/api/stats').catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]).then(r=>{
-  ST=(r&&r.games)?r:(ST||{games:{},users:{},liked:[]});STT=Date.now();STP=null;
+ if(RKST0&&!force&&Date.now()-RKST<20000)return Promise.resolve(RKST0);
+ if(RKSP)return RKSP;
+ RKSP=Promise.race([api('/api/stats').catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]).then(r=>{
+  RKST0=(r&&r.games)?r:(RKST0||{games:{},users:{},liked:[]});RKST=Date.now();RKSP=null;
   try{rkPaint()}catch(e){}
-  return ST;
+  return RKST0;
  });
- return STP;
+ return RKSP;
 }
-const rkGameStat=id=>((ST&&ST.games&&ST.games[id])||{likes:0,plays:0,comments:0});
-const rkUserStat=n=>((ST&&ST.users&&ST.users[n])||{visits:0,likes:0,games:0,itemLikes:0,sales:0});
+const rkGameStat=id=>((RKST0&&RKST0.games&&RKST0.games[id])||{likes:0,plays:0,comments:0});
+const rkUserStat=n=>((RKST0&&RKST0.users&&RKST0.users[n])||{visits:0,likes:0,games:0,itemLikes:0,sales:0});
 const rkHash=()=>String(location.hash||'');
 const rkGameId=()=>{const m=/^#\/g\/([\w-]+)/.exec(rkHash());return m?m[1]:null};
 const rkUserName=()=>{const m=/^#\/user\/([^/?]+)/.exec(rkHash());return m?decodeURIComponent(m[1]):null};
@@ -61,7 +61,7 @@ function rkComments(kind,id,host){
 function rkGamePage(id){
  const me=cur(),g=(typeof games==='function'?games():[]).find(x=>x.id==id);
  if(!g){app.innerHTML='<button id="rkgb">← Back</button><h2>Game not found</h2><p class="mut">It may have been removed.</p>';const b=rk$('rkgb');if(b)b.onclick=()=>location.hash='#/';return}
- const s=rkGameStat(id),liked=!!(ST&&ST.liked&&ST.liked.indexOf(id)>=0),t=g.thumb||(g.ht?'/api/thumb/'+g.id+'?v='+(g.tv||0):null);
+ const s=rkGameStat(id),liked=!!(RKST0&&RKST0.liked&&RKST0.liked.indexOf(id)>=0),t=g.thumb||(g.ht?'/api/thumb/'+g.id+'?v='+(g.tv||0):null);
  app.innerHTML='<button id="rkgb">← Back</button><div class="hat" style="margin-top:12px"><div class="card">'+
   (t?'<img src="'+rkEsc(t)+'" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;background:var(--bg)">'
     :'<div class="gcard" style="background:linear-gradient('+rkEsc(g.sky||'#8fd3ff')+','+rkEsc(g.ground||'#5bd16a')+');aspect-ratio:16/9;height:auto"></div>')+
@@ -83,15 +83,19 @@ function rkGamePage(id){
   api('/api/glike',{id}).then(r=>{
    lk.disabled=false;
    if(!r||r.error)return toast((r&&r.error)||'Could not like that game.');
-   if(ST&&ST.liked){ST.liked=r.liked?ST.liked.concat([id]).filter((v,i,a)=>a.indexOf(v)==i):ST.liked.filter(x=>x!=id)}
-   if(ST&&ST.games&&ST.games[id])ST.games[id].likes=r.n;
+   if(RKST0&&RKST0.liked){RKST0.liked=r.liked?RKST0.liked.concat([id]).filter((v,i,a)=>a.indexOf(v)==i):RKST0.liked.filter(x=>x!=id)}
+   if(RKST0&&RKST0.games&&RKST0.games[id])RKST0.games[id].likes=r.n;
    if(rk$('rkl'))rk$('rkl').textContent=rkNum(r.n);
    lk.textContent=r.liked?'❤ Liked':'♡ Like';
    toast(r.liked?'Added to your likes.':'Like removed.',true);
   },()=>{lk.disabled=false;toast('Could not like that game.')});
  };
  rkComments('game',id,rk$('rkcm'));
- if(!ST)rkStats().then(()=>{const a=rk$('rkp'),b2=rk$('rkl'),c=rk$('rkc');if(a)a.textContent=rkNum(rkGameStat(id).plays);if(b2)b2.textContent=rkNum(rkGameStat(id).likes);if(c)c.textContent=rkNum(rkGameStat(id).comments)});
+ rkStats().then(()=>{
+  const s2=rkGameStat(id),a=rk$('rkp'),b2=rk$('rkl'),c=rk$('rkc'),lb=rk$('rkgl');
+  if(a)a.textContent=rkNum(s2.plays);if(b2)b2.textContent=rkNum(s2.likes);if(c)c.textContent=rkNum(s2.comments);
+  if(lb&&RKST0&&RKST0.liked)lb.textContent=RKST0.liked.indexOf(id)>=0?'❤ Liked':'♡ Like';
+ });
 }
 
 /* ---------- creator analytics ---------- */
@@ -135,7 +139,7 @@ function rkProfileStats(){
  }
  const chips=[...stat.children];
  const lk=chips.find(c=>/likes/i.test((c.textContent||''))&&c!==chips[2]);
- if(lk&&ST){const b=lk.querySelector('b');if(b&&rkUserStat(name).likes!=null)b.textContent=rkNum(rkUserStat(name).likes)}
+ if(lk&&RKST0){const b=lk.querySelector('b');if(b&&rkUserStat(name).likes!=null)b.textContent=rkNum(rkUserStat(name).likes)}
  if(mine&&!document.getElementById('rkan')){
   const wrap=document.createElement('div');wrap.id='rkan';
   const head=app.querySelector('.hat');
@@ -156,7 +160,7 @@ function rkCommentsOnItem(){
 }
 
 function rkGameButtons(){
- if(!ST)return;
+ if(!RKST0)return;
  app.querySelectorAll('[data-g],[data-solo]').forEach(b=>{
   const id=b.dataset.g||b.dataset.solo;if(!id)return;
   const pa=b.parentNode;if(!pa||pa.querySelector('.rk-gm'))return;
@@ -171,10 +175,10 @@ function rkGameButtons(){
 }
 
 function rkPaint(){
- if(PBUSY)return;
- PBUSY=1;
+ if(RKBUSY)return;
+ RKBUSY=1;
  requestAnimationFrame(()=>{
-  PBUSY=0;
+  RKBUSY=0;
   try{
    if(rkGameId()){rkGameButtons();return}
    rkProfileStats();
@@ -222,8 +226,10 @@ function rkPaint(){
  document.head.appendChild(st);
  const R0=render;
  render=function(){
-  if(rkGameId()){try{R0()}catch(e){}try{rkGamePage(rkGameId())}catch(e){}if(!ST)rkStats();scrollTo(0,0);return}
+  RKST=0;
+  if(rkGameId()){try{R0()}catch(e){}try{rkGamePage(rkGameId())}catch(e){}rkStats();scrollTo(0,0);return}
   R0();
+  rkStats();
  };
  const ob=new MutationObserver(()=>{try{rkPaint()}catch(e){}});
  if(app)ob.observe(app,{childList:true,subtree:true});
