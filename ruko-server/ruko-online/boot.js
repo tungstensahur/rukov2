@@ -167,7 +167,11 @@ http.createServer=function(handler){
    try{
     let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
     // The three-head-accessory overlay is added here, so the page file itself stays untouched.
-    if(html.indexOf('30-hat-three.js')<0)html=html.replace('</body>','<script src="js/30-hat-three.js?v=20261114e"></script></body>');
+    if(html.indexOf('30-hat-three.js')<0){
+     // The version is the file's own timestamp, so a changed overlay is never served from cache.
+     const hv=Math.round(fs.statSync(path.join(__dirname,'public','js','30-hat-three.js')).mtimeMs);
+     html=html.replace('</body>','<script src="js/30-hat-three.js?v='+hv+'"></script></body>');
+    }
     res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store, must-revalidate'});
     return res.end(html);
    }catch(e){console.error('boot.js: could not serve the page:',e&&e.message)}

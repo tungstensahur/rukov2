@@ -142,6 +142,24 @@
   pick(b.getAttribute('data-rkh')||'');
  },true);
 
+ /* "Equip" on a catalog item fills the next free head pocket instead of replacing the first
+    head item, so wearing a new hat never quietly takes an old one off. */
+ document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('#eq');
+  if(!b)return;
+  const id=decodeURIComponent(location.hash.split('/')[2]||'');
+  const h=hats().find(x=>x.id==id);
+  if(!h||h.kind=='shirt'||(h.slot||'head')!='head')return;
+  const me=cur();
+  let w=headIds(me);
+  e.preventDefault();e.stopPropagation();
+  if(w.includes(id)){try{toast('You are already wearing that one.')}catch(err){}return}
+  if(w.length>=MAX){try{toast('You are wearing 3 head items — take one off in the Avatar screen first.')}catch(err){}return}
+  w.push(id);save(me,w);
+  try{toast('Worn · '+w.length+' of '+MAX+' head items')}catch(err){}
+  try{render()}catch(err){}
+ },true);
+
  decorate();
  try{
   const host=document.getElementById('app');
