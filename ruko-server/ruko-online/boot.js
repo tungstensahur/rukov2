@@ -45,6 +45,49 @@ function coreSource(){
  return coreCache;
 }
 
+// The block editor's file picker keeps its own size checks. Sounds may be up to 10 MB, which is
+// 14 MB once the browser turns them into text, so the picker's ceiling is raised the same way.
+const ASSET_JS='/js/25-studio-assets.js';
+const ASSET_MARKS=[
+ ['const MAXIMG=240000,MAXSND=300000;','const MAXIMG=240000,MAXSND=14000000;'],
+ ["'That sound is too big. Try one under 250 KB.'","'That sound is too big. Sounds can be up to 10 MB.'"]
+];
+let assetCache=null;
+function assetSource(){
+ if(assetCache!==null)return assetCache;
+ const f=path.join(__dirname,'public','js','25-studio-assets.js');
+ let src=fs.readFileSync(f,'utf8');
+ ASSET_MARKS.forEach(([mark,to])=>{
+  if(src.indexOf(mark)<0){console.error('boot.js: upload limit marker missing ('+mark.slice(0,30)+'), using the old limit');return}
+  src=src.split(mark).join(to);
+ });
+ assetCache=src;
+ return assetCache;
+}
+
+// Uploads are stored by routes.js, which has its own size limits. They are raised here, in memory,
+// by compiling a raised copy and putting it in the module cache before anything can require it.
+const ROUTES_MARKS=[
+ ['const MAXASSETS=8,MAXIMG=250000,MAXSND=320000,MAXTOTAL=900000;','const MAXASSETS=8,MAXIMG=250000,MAXSND=14000000,MAXTOTAL=32000000;'],
+ ["'That sound is too big (about 250 KB max).'","'That sound is too big. Sounds can be up to 10 MB.'"]
+];
+function raiseUploadLimits(){
+ const rf=path.join(__dirname,'routes.js');
+ let src=fs.readFileSync(rf,'utf8');
+ ROUTES_MARKS.forEach(([mark,to])=>{
+  if(src.indexOf(mark)<0){console.error('boot.js: upload storage marker missing ('+mark.slice(0,30)+')');return}
+  src=src.split(mark).join(to);
+ });
+ const mod=new Module(rf,module);
+ mod.filename=rf;
+ mod.paths=Module._nodeModulePaths(__dirname);
+ mod._compile(src,rf);
+ mod.loaded=true;
+ require.cache[rf]=mod;
+ return mod.exports;
+}
+try{raiseUploadLimits()}catch(e){console.error('boot.js: could not raise upload limits:',e&&e.message)}
+
 // The editor offers more blocks and triggers than the server's save sanitizer used to accept,
 // so anything using them was silently deleted on save (and then gone when the editor reopened).
 // These two snippets teach the sanitizer the rest of the editor's blocks.
@@ -138,7 +181,7 @@ const SERVER_MARKS=[
  ["for(const slot of['head','face','back'])if(typeof q.gear[slot]=='string')","for(const slot of['head','head2','head3','face','back'])if(typeof q.gear[slot]=='string')",'replace'],
  ["D.plays[gid]=(D.plays[gid]||0)+1;","try{require('./routes.js').noteVisit(D,gid)}catch(e){}",'after'],
  // Uploaded sounds are bigger than any other request, so the body reader gets a bigger ceiling.
- ["if(s.length>400000){no();req.destroy()}","if(s.length>1048576){no();req.destroy()}",'replace'],
+ ["if(s.length>400000){no();req.destroy()}","if(s.length>15728640){no();req.destroy()}",'replace'],
  [DRAFT_F,DRAFT_F_NEW,'replace'],
  [DRAFT_LIST,DRAFT_LIST_NEW,'replace'],
  [GAME_GET,GAME_GET_NEW,'replace'],
@@ -157,9 +200,13 @@ const create=http.createServer.bind(http);
 http.createServer=function(handler){
  return create(function(req,res){
   const url=String(req.url||'').split('?')[0];
-  if(url===CORE){
-   try{const js=coreSource();res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','cache-control':'public, max-age=3600'});return res.end(js)}
-   catch(e){console.error('boot.js: game core serve failed:',e&&e.message)}
+  if(url===CORE||url===ASSET_JS){
+   try{
+    const js=url===CORE?coreSource():assetSource();
+    res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','cache-control':'no-store, must-revalidate'});
+    return res.end(js);
+   }
+   catch(e){console.error('boot.js: patched script serve failed:',e&&e.message)}
   }
   // The page itself is never cached, so a new deploy is picked up on the next visit instead of
   // serving whatever the browser kept from last time.
