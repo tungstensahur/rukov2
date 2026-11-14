@@ -217,7 +217,7 @@ http.createServer=function(handler){
    try{
     let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
     // The late overlays are added here, so the page file itself stays untouched.
-    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js','35-game-saves.js'].forEach(name=>{
+    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js','35-game-saves.js','36-tickets.js'].forEach(name=>{
      if(html.indexOf(name)>=0)return;
      // The version is the file's own timestamp, so a changed overlay is never served from cache.
      const hv=Math.round(fs.statSync(path.join(__dirname,'public','js',name)).mtimeMs);
@@ -239,7 +239,8 @@ const file=path.join(__dirname,'server.js');
 let src=fs.readFileSync(file,'utf8');
 const MARK=" if(p=='/api/profile'){";
 if(src.indexOf(MARK)<0)throw new Error('boot.js: could not find the route marker in server.js');
-src=src.replace(MARK," if(p=='/api/reports'||p=='/api/daily'||p=='/api/stats'||p=='/api/glike'||p=='/api/comments'||p=='/api/analytics'||p=='/api/drafts'||p.indexOf('/api/asset')===0){return require('./routes.js')({req,res,p,b,me,send,need,D,save,staff,PRICE});}\n"+MARK);
+// Tickets live in their own module: they keep a play clock as well as a balance.
+src=src.replace(MARK," if(p=='/api/reports'||p=='/api/daily'||p=='/api/stats'||p=='/api/glike'||p=='/api/comments'||p=='/api/analytics'||p=='/api/drafts'||p.indexOf('/api/asset')===0||p.indexOf('/api/ticket')===0){return (p.indexOf('/api/ticket')===0?require('./tickets.js'):require('./routes.js'))({req,res,p,b,me,send,need,D,save,staff,PRICE});}\n"+MARK);
 SERVER_MARKS.forEach(([mark,hook,where])=>{
  const out=splice(src,mark,hook,where);
  if(out===null){console.error('boot.js: block sanitizer marker missing ('+mark.slice(0,26)+'), saving without that patch');return}
