@@ -2,19 +2,28 @@
 // server exactly as it is on disk: server.js itself is never edited, the extra routes are
 // spliced into its request handler in memory.
 const http=require('http'),fs=require('fs'),path=require('path'),Module=require('module');
-// One line spliced into the game core so the in-game menu can respawn and list players.
-// The file on disk is never modified; only the copy served to browsers carries the hook.
+// Two small snippets spliced into the game core so the in-game menu can respawn and list
+// players. The file on disk is never modified; only the copy served to browsers carries them.
+// Each entry: [marker, snippet, where] where "where" is before or after the marker.
+// The room client is created asynchronously (inside RM.join().then), so the player list has to
+// hook in there rather than next to the exit button.
 const CORE='/js/00-boot-and-core.js';
-const CORE_MARK="$('#ex').onclick=()=>{";
-const CORE_HOOK="window.RKPLAY={respawn:()=>{try{rsp()}catch(e){}},exit:()=>{try{document.getElementById('ex').click()}catch(e){}},game:g.name,solo:!srv};\nif(rr&&rr.onPeers){try{rr.onPeers(function(ps){window.RKROSTER=(ps&&ps.peers)||[];try{dispatchEvent(new Event('rk-roster'))}catch(e){}})}catch(e){}}\n";
+const CORE_MARKS=[
+ ["$('#ex').onclick=()=>{","window.RKPLAY={respawn:()=>{try{rsp()}catch(e){}},exit:()=>{try{document.getElementById('ex').click()}catch(e){}},game:g.name,solo:!srv};\n",'before'],
+ ["rr=r;","if(rr.onPeers){try{rr.onPeers(function(ps){window.RKROSTER=(ps&&ps.peers)||[];try{dispatchEvent(new Event('rk-roster'))}catch(e){}})}catch(e){}}",'after']
+];
 let coreCache=null;
 function coreSource(){
  if(coreCache!==null)return coreCache;
  const f=path.join(__dirname,'public','js','00-boot-and-core.js');
  let src=fs.readFileSync(f,'utf8');
- const i=src.indexOf(CORE_MARK);
- if(i<0){console.error('boot.js: game core hook marker missing, serving it unchanged');coreCache=src;return coreCache}
- coreCache=src.slice(0,i)+CORE_HOOK+src.slice(i);
+ CORE_MARKS.forEach(([mark,hook,where])=>{
+  const i=src.indexOf(mark);
+  if(i<0){console.error('boot.js: game core hook marker missing ('+mark.slice(0,26)+'), serving the core without that hook');return}
+  const at=where==='after'?i+mark.length:i;
+  src=src.slice(0,at)+hook+src.slice(at);
+ });
+ coreCache=src;
  return coreCache;
 }
 const posts=require('./posts.js'),descs=require('./descs.js');
