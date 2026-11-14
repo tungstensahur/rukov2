@@ -132,6 +132,10 @@ const SERVER_MARKS=[
  ["['score','A','B','C']","['score','A','B','C','D','E','F']",'replace-all'],
  ["['A','B','C']","['A','B','C','D','E','F']",'replace-all'],
  ["list.slice(0,80)","list.slice(0,300)",'replace'],
+ // Up to three head accessories: each one gets its own pocket, and only the head slots get extras.
+ ["for(const slot of['head','face','back']){const id=b.gear[slot]","for(const slot of['head','head2','head3','face','back']){const id=b.gear[slot]",'replace'],
+ ["if(hs!==slot)continue;ng[slot]=id}","if(hs!==(slot=='head2'||slot=='head3'?'head':slot))continue;ng[slot]=id}",'replace'],
+ ["for(const slot of['head','face','back'])if(typeof q.gear[slot]=='string')","for(const slot of['head','head2','head3','face','back'])if(typeof q.gear[slot]=='string')",'replace'],
  ["D.plays[gid]=(D.plays[gid]||0)+1;","try{require('./routes.js').noteVisit(D,gid)}catch(e){}",'after'],
  // Uploaded sounds are bigger than any other request, so the body reader gets a bigger ceiling.
  ["if(s.length>400000){no();req.destroy()}","if(s.length>1048576){no();req.destroy()}",'replace'],
@@ -161,7 +165,9 @@ http.createServer=function(handler){
   // serving whatever the browser kept from last time.
   if(url==='/'||url==='/index.html'){
    try{
-    const html=fs.readFileSync(path.join(__dirname,'public','index.html'));
+    let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
+    // The three-head-accessory overlay is added here, so the page file itself stays untouched.
+    if(html.indexOf('30-hat-three.js')<0)html=html.replace('</body>','<script src="js/30-hat-three.js?v=20261114e"></script></body>');
     res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store, must-revalidate'});
     return res.end(html);
    }catch(e){console.error('boot.js: could not serve the page:',e&&e.message)}
