@@ -59,6 +59,15 @@ http.createServer=function(handler){
    try{const js=coreSource();res.writeHead(200,{'content-type':'application/javascript; charset=utf-8','cache-control':'public, max-age=3600'});return res.end(js)}
    catch(e){console.error('boot.js: game core serve failed:',e&&e.message)}
   }
+  // The page itself is never cached, so a new deploy is picked up on the next visit instead of
+  // serving whatever the browser kept from last time.
+  if(url==='/'||url==='/index.html'){
+   try{
+    const html=fs.readFileSync(path.join(__dirname,'public','index.html'));
+    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store, must-revalidate'});
+    return res.end(html);
+   }catch(e){console.error('boot.js: could not serve the page:',e&&e.message)}
+  }
   const mod=url==='/api/posts'?posts:url==='/api/descs'?descs:null;
   if(mod){
    mod(req,res).catch(e=>{console.error('extra api:',e&&e.message);try{res.writeHead(500,{'content-type':'application/json'});res.end('{"error":"Server error."}')}catch(_){}});
