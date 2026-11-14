@@ -23,7 +23,7 @@ const CLASSIC={
 };
 function pack(p){
  if(!p||typeof p!=='object')return null;
- const id=String(p.id||'').replace(/[\w-]/g,'').slice(0,20);
+ const id=String(p.id||'').replace(/[^\w-]/g,'').slice(0,20);
  if(!id)return null;
  return {
   id,
