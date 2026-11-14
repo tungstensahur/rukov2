@@ -1,12 +1,18 @@
 /* ---------- v37: body packages ---------- */
-/* A package is a set of body sizes for the player rig: head, torso, arms and legs. The Ruko account
-   makes them on its own page; anyone can wear one from the Avatar page. The rig is rebuilt from the
-   sizes instead of stretched, so limbs always meet the torso and the feet stay on the ground. */
+/* A package is a body for the player rig. It carries sizes for the head, torso, arms and legs, and,
+   for any part it wants, a list of mesh pieces built from the same shapes the accessory editor uses.
+   The Ruko account builds them on the Packages page; anyone can wear one from the Avatar page.
+   Pieces paint themselves with @skin, @shirt or @pants so a package still follows the wearer's
+   colours; a part with no pieces keeps its normal box. */
 (function(){
  if(window.RKPKG)return;
  const PK={list:[],byId:{}};
  let pkTried=false;
- const CLASSIC={id:'classic',name:'Classic',head:{w:.7,h:.7,d:.7},torso:{w:1.2,h:1.2,d:.6},arms:{w:.55,h:1.2,d:.55},legs:{w:.55,h:1.2,d:.55},spread:1};
+ const SLOTS=[['head','Head'],['torso','Torso'],['arms','Arms'],['legs','Legs']];
+ const SHAPES=['box','sphere','dome','cylinder','cone','pyramid','prism','octa','ico','torus'];
+ const FINISH=['matte','shiny','metal','glass','neon'];
+ const COLOURS=[['@skin','Skin'],['@shirt','Shirt'],['@pants','Pants']];
+ const CLASSIC={id:'classic',name:'Classic',head:{w:.7,h:.7,d:.7},torso:{w:1.2,h:1.2,d:.6},arms:{w:.55,h:1.2,d:.55},legs:{w:.55,h:1.2,d:.55},spread:1,mesh:null};
  const num=(v,a,b,d)=>{const n=+v;return Math.max(a,Math.min(b,isNaN(n)?d:n))};
  const dims=p=>({
   head:{w:num(p.head&&p.head.w,.3,2,.7),h:num(p.head&&p.head.h,.3,2,.7),d:num(p.head&&p.head.d,.3,2,.7)},
@@ -15,10 +21,11 @@
   legs:{w:num(p.legs&&p.legs.w,.15,1.5,.55),h:num(p.legs&&p.legs.h,.3,3,1.2),d:num(p.legs&&p.legs.d,.15,1.5,.55)},
   spread:num(p.spread,.5,2,1)
  });
+ const pieces=(P,k)=>P&&P.mesh&&Array.isArray(P.mesh[k])?P.mesh[k]:[];
 
  /* ---------- the rig ---------- */
- /* Same shapes and materials as the normal player, with the package's sizes and the parts stacked so
-    they still touch: feet at the ground, legs up to the torso, arms out of the shoulders, head on top. */
+ /* Sizes stack the parts so they touch: feet on the ground, legs to the torso, arms at the
+    shoulders, head on top. A part with pieces gets those pieces at that same spot instead of a box. */
  function rig(hat,av,nm,P){
   av=Object.assign({skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},av);
   const g=new THREE.Group(),Lm=c=>new THREE.MeshLambertMaterial({color:c}),sk=Lm(av.skin);
@@ -26,17 +33,42 @@
   const D=dims(P),hd=D.head,to=D.torso,ar=D.arms,lg=D.legs,S=D.spread;
   const legTop=lg.h,torsoY=legTop+to.h/2,torsoTop=legTop+to.h,headY=torsoTop+hd.h/2;
   const fm=Lm(av.shirt),bm=Lm(av.shirt),tu=av.teeUrl||(av.tee?teeURL(av.tee):null);
-  g.add(bx(to.w,to.h,to.d,[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm],torsoY,8,.13));
-  if(tu)g.userData.tw=loadTee(tu).then(im=>{
-   const cv=document.createElement('canvas');cv.width=cv.height=256;
-   const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);
-   const t=new THREE.CanvasTexture(cv);
-   for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}
-  }).catch(()=>{});
-  g.add(bx(hd.w,hd.h,hd.d,[sk,sk,sk,sk,new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),sk],headY,8,.12));
-  const limb=(x,m,top,w,h)=>{const p=new THREE.Group();p.position.set(x,top,0);p.add(bx(w,h,w,m,-h/2,6,.11));g.add(p);return p},pm=Lm(av.pants);
-  const axA=(to.w/2+ar.w/2)*S,axL=(lg.w/2+.025)*S;
-  g.userData.l={la:limb(-axA,sk,torsoTop,ar.w,ar.h),ra:limb(axA,sk,torsoTop,ar.w,ar.h),ll:limb(-axL,pm,legTop,lg.w,lg.h),rl:limb(axL,pm,legTop,lg.w,lg.h)};
+  const wear=(spec)=>{ // @skin / @shirt / @pants follow the wearer
+   const out=Object.assign({},spec),c=out.c;
+   if(c=='@skin')out.c=av.skin;else if(c=='@shirt')out.c=av.shirt;else if(c=='@pants')out.c=av.pants;
+   return out;
+  };
+  const art=(list)=>{const q=new THREE.Group();(list||[]).forEach(pc=>{try{q.add(hatMesh({parts:[wear(pc)]}))}catch(e){}});return q};
+
+  const hp=pieces(P,'head'),tp=pieces(P,'torso'),ap=pieces(P,'arms'),lp=pieces(P,'legs');
+  if(tp.length){const m=art(tp);m.position.set(0,torsoY,0);g.add(m)}
+  else{
+   g.add(bx(to.w,to.h,to.d,[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm],torsoY,8,.13));
+   if(tu)g.userData.tw=loadTee(tu).then(im=>{
+    const cv=document.createElement('canvas');cv.width=cv.height=256;
+    const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);
+    const t=new THREE.CanvasTexture(cv);
+    for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}
+   }).catch(()=>{});
+  }
+  if(hp.length){const m=art(hp);m.position.set(0,headY,0);g.add(m)}
+  else g.add(bx(hd.w,hd.h,hd.d,[sk,sk,sk,sk,new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),sk],headY,8,.12));
+
+  const limb=(x,top,build)=>{const p=new THREE.Group();p.position.set(x,top,0);build(p);g.add(p);return p};
+  const axA=(to.w/2+ar.w/2)*S,axL=(lg.w/2+.025)*S,pm=Lm(av.pants);
+  const armBody=list=>p=>{
+   const m=art(list);m.position.y=-ar.h/2;p.add(m);
+  };
+  const legBody=list=>p=>{
+   const m=art(list);m.position.y=-lg.h/2;p.add(m);
+  };
+  const oneArm=list=>p=>{if(list.length)armBody(list)(p);else p.add(bx(ar.w,ar.h,ar.w,sk,-ar.h/2,6,.11))};
+  const oneLeg=list=>p=>{if(list.length)legBody(list)(p);else p.add(bx(lg.w,lg.h,lg.w,pm,-lg.h/2,6,.11))};
+  const flip=p=>{p.scale.x=-1;return p};
+  g.userData.l={
+   la:flip(limb(-axA,torsoTop,oneArm(ap))),ra:limb(axA,torsoTop,oneArm(ap)),
+   ll:flip(limb(-axL,legTop,oneLeg(lp))),rl:limb(axL,legTop,oneLeg(lp))
+  };
   const dy=headY-2.75;
   (Array.isArray(hat)?hat:hat?[hat]:[]).forEach(h=>{
    const m=hatMesh(h),off=SL[h.slot]||SL.head;
@@ -57,15 +89,24 @@
   };
  }catch(e){}
 
+ let loaded=false;
+ const redraw=()=>{ // the first render can happen before the package list arrives
+  const h=String(location.hash||'');
+  try{
+   if(/^#\/avatar\b/.test(h)){avatar()}
+   else if(!/^#\//.test(h)||/^#\/(home)?$/.test(h)){if(typeof home==='function')home()}
+  }catch(e){}
+ };
  const pull=()=>Promise.resolve().then(()=>api('/api/packages')).then(r=>{
   if(r&&Array.isArray(r.packages)){
    PK.list=r.packages;PK.byId={};
    r.packages.forEach(p=>{PK.byId[p.id]=p});
+   if(!loaded){loaded=true;redraw()}
   }
   return PK.list;
  }).catch(()=>PK.list);
 
- const mine=()=>{const me=cur();return me&&me.av&&me.av.pkg?PK.byId[me.av.pkg]:null};
+ const SAMPLE={skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0};
 
  /* ---------- Avatar page: choose a body ---------- */
  function bodyCard(){
@@ -78,7 +119,7 @@
   card.className='card';card.id='pkcard';card.style.marginTop='12px';
   const cur2=(me.av&&me.av.pkg)||'';
   card.innerHTML=`<div class="stg" style="margin-top:0">Body</div>
-   <p class="mut" style="font-size:12px;margin:0 0 8px">Packages change the shape of your head, body, arms and legs.</p>
+   <p class="mut" style="font-size:12px;margin:0 0 8px">Packages can change the shape of your head, body, arms and legs.</p>
    <div class="chips">${(PK.list.length?PK.list:[CLASSIC]).map(p=>`<button data-pk="${p.id}" class="${cur2==p.id||(!cur2&&p.id=='classic')?'on':''}">${esc(p.name)}</button>`).join('')}</div>
    ${me.admin?`<button id="pkgo" style="font-size:12px;padding:4px 10px;margin-top:8px">📦 Manage packages</button>`:''}`;
   side.appendChild(card);
@@ -102,35 +143,85 @@
  }catch(e){}
 
  /* ---------- the Ruko package page ---------- */
- const PARTS=[['head','Head'],['torso','Torso'],['arms','Arms'],['legs','Legs']];
+ const fresh=()=>({t:'box',c:'@skin',f:'matte',sx:.5,sy:.5,sz:.5,x:0,y:0,z:0,r:0,q:0,ry:0,m:0});
+ const seed=(S,k)=>{
+  const D=dims(S),p=fresh();
+  if(k=='head')Object.assign(p,{t:'sphere',sx:D.head.w,sy:D.head.h,sz:D.head.d});
+  else if(k=='torso')Object.assign(p,{sx:D.torso.w,sy:D.torso.h,sz:D.torso.d});
+  else if(k=='arms')Object.assign(p,{c:'@skin',sx:D.arms.w,sy:D.arms.h,sz:D.arms.w,y:-D.arms.h/2});
+  else Object.assign(p,{c:'@pants',sx:D.legs.w,sy:D.legs.h,sz:D.legs.w,y:-D.legs.h/2});
+  S.mesh[k]=[p];S.sel=0;
+ };
+ const FIELDS=[['sx','Width',.05,3,.05],['sy','Height',.05,3,.05],['sz','Depth',.05,3,.05],['x','Move X',-1.6,1.6,.05],['y','Move Y',-2,2,.05],['z','Move Z',-1.6,1.6,.05],['r','Tilt side',-180,180,5],['q','Tilt front',-180,180,5],['ry','Spin',-180,180,5]];
+
  function editor(){
   const me=cur();
   if(!me)return;
   app.innerHTML='<p class="mut">Loading packages…</p>';
   pull().then(()=>{
-   let S=Object.assign({name:'New package'},JSON.parse(JSON.stringify(CLASSIC)));
+   let S=Object.assign({slot:'head',sel:0},JSON.parse(JSON.stringify(CLASSIC)));
+   S.name='New package';S.mesh={head:[],torso:[],arms:[],legs:[]};
    const draw=()=>{
-    let img='';
-    try{const m=rig([],{skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},null,Object.assign({},S));img=shot(m,[0,2.6,8],[0,1.8,0])}catch(e){}
-    app.innerHTML=`<h2>Packages <span class="mut" style="font-size:13px;font-weight:400">Body shapes for the player rig</span></h2>
-    <div class="hat"><div class="card"><img id="pkpv" alt="" src="${img}" style="max-width:240px"><p class="mut" style="font-size:12px">This is what the body looks like on a player.</p></div>
-    <div><div class="card"><label>Package name</label><input id="pkname" maxlength="24" value="${esc(S.name)}">
-    ${PARTS.map(([k,n])=>`<div class="stg">${n}</div>${['w','h','d'].map((f,i)=>`<label>${['Width','Height','Depth'][i]}</label><input data-p="${k}.${f}" type="range" min="${f=='d'?.25:.15}" max="3" step=".05" value="${S[k][f]}">`).join('')}`).join('')}
-    <label>Arm and leg spacing</label><input data-p="spread" type="range" min=".5" max="2" step=".05" value="${S.spread}">
-    <button class="pri" id="pksave" style="width:100%;margin-top:8px">Create package</button></div></div></div>
-    <h3>All packages</h3><div class="chips">${PK.list.map(p=>`<button data-del="${p.id}">${esc(p.name)} ✕</button>`).join('')||'<span class="mut">None yet.</span>'}</div>
+    const slot=S.slot,list=S.mesh[slot],p=list[Math.min(S.sel,list.length-1)];
+    const sl=(k,n,a,b,st,v)=>`<label>${n}</label><input data-p="${k}" type="range" min="${a}" max="${b}" step="${st}" value="${v}">`;
+    app.innerHTML=`<h2>Packages <span class="mut" style="font-size:13px;font-weight:400">Custom bodies for the player rig</span></h2>
+    <div class="hat"><div class="card"><img id="pkpv" alt="" style="width:100%;max-width:340px;display:block;margin:0 auto"><p class="mut" style="font-size:12px">Live preview on a player.</p></div>
+    <div>
+     <div class="card"><label>Package name</label><input id="pkname" maxlength="24" value="${esc(S.name)}">
+      ${SLOTS.map(([k,n])=>`<div class="stg">${n}</div>${['w','h','d'].map((f,i)=>sl(k+'.'+f,['Width','Height','Depth'][i],f=='d'?.25:.15,3,.05,S[k][f])).join('')}`).join('')}
+      ${sl('spread','Arm and leg spacing',.5,2,.05,S.spread)}
+      <button class="pri" id="pksave" style="width:100%;margin-top:8px">Create package</button></div>
+     <div class="card" style="margin-top:12px"><div class="stg" style="margin-top:0">Custom pieces</div>
+      <div class="chips">${SLOTS.map(([k,n])=>`<button data-mk="${k}" class="${slot==k?'on':''}">${n}${S.mesh[k].length?' ('+S.mesh[k].length+')':''}</button>`).join('')}</div>
+      ${list.length?`
+       <div class="chips">${list.map((q,i)=>`<button data-ms="${i}" class="${i==S.sel?'on':''}">${i+1}. ${q.t}</button>`).join('')}</div>
+       <div class="chips"><button id="madd">+ Add piece</button><button id="mdup">Duplicate</button><button id="mdel">Delete</button><button id="mclr">Back to normal ${slot}</button></div>
+       <label>Shape</label><select id="mshape">${SHAPES.map(k=>`<option ${k==p.t?'selected':''}>${k}</option>`).join('')}</select>
+       <label>Colour</label><select id="mcol">${COLOURS.map(([v,n])=>`<option value="${v}" ${p.c==v?'selected':''}>${n} (follows the wearer)</option>`).join('')}<option value="custom" ${COLOURS.some(c=>c[0]==p.c)?'':'selected'}>Custom colour</option></select>
+       <input id="mcc" type="color" value="${/^#/.test(p.c)?p.c:'#f5cd30'}">
+       <label>Finish</label><select id="mfin">${FINISH.map(k=>`<option ${k==p.f?'selected':''}>${k}</option>`).join('')}</select>
+       ${FIELDS.map(([k,n,a,b,st])=>sl('pc.'+k,n,a,b,st,p[k])).join('')}
+       <label><input id="mmir" type="checkbox" ${p.m?'checked':''}> Mirror to the other side</label>
+       <p class="mut" style="font-size:12px">${slot=='arms'||slot=='legs'?'One limb is built and copied to the other side.':'A custom '+slot+' replaces the normal one'+(slot=='head'?' including the face.':' including the shirt colours.')}</p>`
+      :`<p class="mut" style="font-size:12px">The ${slot} uses its normal shape. Add a piece to build it from shapes instead.</p>
+        <button id="madd">+ Add piece</button>`}
+     </div>
+    </div></div>
+    <h3>All packages</h3><div class="chips">${PK.list.map(x=>`<button data-del="${x.id}">${esc(x.name)} ✕</button>`).join('')||'<span class="mut">None yet.</span>'}</div>
     <p class="mut" style="font-size:12px">Tap a package to remove it. The classic body stays.</p>`;
+    const repaint=()=>{try{$('#pkpv').src=shot(rig([],SAMPLE,null,Object.assign({},S)),[0,2.8,9],[0,1.9,0])}catch(e){}};
     $('#pkname').oninput=e=>{S.name=e.target.value};
     app.querySelectorAll('[data-p]').forEach(i=>i.oninput=()=>{
-     const [k,f]=i.dataset.p.split('.');
-     if(f)S[k][f]=+i.value;else S[k]=+i.value;
-     try{const m=rig([],{skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},null,Object.assign({},S));$('#pkpv').src=shot(m,[0,2.6,8],[0,1.8,0])}catch(e){}
+     const q=i.dataset.p;
+     if(q.indexOf('pc.')==0){if(p)p[q.slice(3)]=+i.value}
+     else if(q.indexOf('.')>0){const[k,f]=q.split('.');if(S[k])S[k][f]=+i.value}
+     else S[q]=+i.value;
+     repaint();
     });
+    app.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>{S.slot=b.dataset.mk;S.sel=0;draw()});
+    app.querySelectorAll('[data-ms]').forEach(b=>b.onclick=()=>{S.sel=+b.dataset.ms;draw()});
+    const A=app.querySelector('#madd');
+    if(A)A.onclick=()=>{
+     if(!list.length){seed(S,slot);draw();return}
+     if(list.length>=16)return;
+     list.push(fresh());S.sel=list.length-1;draw();
+    };
+    const Dp=app.querySelector('#mdup');if(Dp)Dp.onclick=()=>{if(p){list.push(JSON.parse(JSON.stringify(p)));S.sel=list.length-1;draw()}};
+    const Dl=app.querySelector('#mdel');if(Dl)Dl.onclick=()=>{list.splice(S.sel,1);S.sel=0;draw()};
+    const Cl=app.querySelector('#mclr');if(Cl)Cl.onclick=()=>{S.mesh[slot]=[];S.sel=0;draw()};
+    if(p){
+     $('#mshape').onchange=e=>{p.t=e.target.value;draw()};
+     $('#mcol').onchange=e=>{p.c=e.target.value=='custom'?($('#mcc').value||'#f5cd30'):e.target.value;draw()};
+     $('#mcc').oninput=e=>{if(!COLOURS.some(c=>c[0]==p.c)){p.c=e.target.value;repaint()}};
+     $('#mfin').onchange=e=>{p.f=e.target.value;repaint()};
+     $('#mmir').onchange=e=>{p.m=e.target.checked?1:0;repaint()};
+    }
     $('#pksave').onclick=async()=>{
-     const r=await api('/api/packages',{action:'create',name:S.name||'Package',head:S.head,torso:S.torso,arms:S.arms,legs:S.legs,spread:S.spread});
+     const r=await api('/api/packages',{action:'create',name:S.name||'Package',head:S.head,torso:S.torso,arms:S.arms,legs:S.legs,spread:S.spread,mesh:S.mesh});
      if(!r||!r.ok)return toast((r&&r.error)||'Could not create that package.');
      await pull();toast('📦 '+r.package.name+' created.');
-     S=Object.assign({name:'New package'},JSON.parse(JSON.stringify(CLASSIC)));
+     S=Object.assign({slot:'head',sel:0},JSON.parse(JSON.stringify(CLASSIC)));
+     S.name='New package';S.mesh={head:[],torso:[],arms:[],legs:[]};
      draw();
     };
     app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
@@ -138,6 +229,7 @@
      if(!r||!r.ok)return toast((r&&r.error)||'Could not remove that package.');
      await pull();draw();
     });
+    repaint();
    };
    draw();
   });
@@ -151,8 +243,6 @@
   };
  }catch(e){}
 
- /* an admin-only way in, from the top bar. Who is signed in is only known after the page has
-    loaded, so this keeps looking until the Ruko account turns up. */
  const addNav=()=>{
   const me=typeof cur==='function'?cur():null;
   const nav=document.querySelector('#top nav');
@@ -166,8 +256,6 @@
   return true;
  };
  const navTimer=setInterval(()=>{try{if(addNav())clearInterval(navTimer)}catch(e){}},700);
-
- /* the list is only readable once someone is signed in */
  const loadTimer=setInterval(()=>{try{if(typeof cur==='function'&&cur()){clearInterval(loadTimer);pull()}}catch(e){}},800);
- window.RKPKG={list:()=>PK.list,byId:()=>PK.byId,reload:pull,rig:rig,mine:mine};
+ window.RKPKG={list:()=>PK.list,byId:()=>PK.byId,reload:pull,rig:rig};
 })();
