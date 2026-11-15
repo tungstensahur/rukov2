@@ -195,21 +195,22 @@ const SERVER_MARKS=[
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES2,'before'],
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES,'before'],
  ["else if(t=='chatCmd')H={t,m:sStr(h.m,30)};",TRIGGER_CASES,'after'],
- // Clothes: players publish pants next to shirts, and a shirt carries a sleeves flag.
+ // Clothes: players publish pants next to shirts, and a shirt carries a colour and its sleeves.
  ["const mineS=D.hats.filter(h=>h.kind=='shirt'&&h.creator===me.name);",
   "const K=b.kind=='pants'?'pants':'shirt';const mineS=D.hats.filter(h=>h.kind==K&&h.creator===me.name);",'replace'],
+ // A shirt keeps its fabric colour and how much sleeve it has: 0 none, 1 short, 2 long.
  ["D.hats.push({id,kind:'shirt',slot:'shirt',",
-  "D.hats.push({id,kind:K,slot:K,sleeves:K=='shirt'&&b.sleeves!==false?1:0,",'replace'],
+  "D.hats.push({id,kind:K,slot:K,col:K=='shirt'?(/^#[0-9a-f]{6}$/i.test(b.col||'')?b.col:'#2f6fed'):undefined,sleeves:K=='shirt'?Math.max(0,Math.min(2,b.sleeves===true?1:+b.sleeves||0)):0,",'replace'],
  ["const id=p.slice(11),h=D.hats.find(x=>x.id==id&&x.kind=='shirt'),",
   "const id=p.slice(11),h=D.hats.find(x=>x.id==id&&(x.kind=='shirt'||x.kind=='pants')),",'replace'],
  ["const h=D.hats.find(x=>x.id==b.id&&x.kind=='shirt');if(!h)return send(res,404,{error:'Not found.'});",
   "const h=D.hats.find(x=>x.id==b.id&&(x.kind=='shirt'||x.kind=='pants'));if(!h)return send(res,404,{error:'Not found.'});",'replace'],
- // The avatar may also wear a pair of pants the player made.
+ // The avatar may also wear a shirt and a pair of pants the player made.
  ["tee:typeof a.tee=='string'&&/^[\\w-]{1,30}$/.test(a.tee)?a.tee:undefined}",
-  "tee:typeof a.tee=='string'&&/^[\\w-]{1,30}$/.test(a.tee)?a.tee:undefined,pantsTex:typeof a.pantsTex=='string'&&/^[\\w-]{1,30}$/.test(a.pantsTex)?a.pantsTex:undefined}",'replace'],
+  "tee:typeof a.tee=='string'&&/^[\\w-]{1,30}$/.test(a.tee)?a.tee:undefined,shirtTex:typeof a.shirtTex=='string'&&/^[\\w-]{1,30}$/.test(a.shirtTex)?a.shirtTex:undefined,pantsTex:typeof a.pantsTex=='string'&&/^[\\w-]{1,30}$/.test(a.pantsTex)?a.pantsTex:undefined}",'replace'],
  // A worn shirt or pair of pants has to be one the player actually owns.
  ["if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;",
-  "if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;if(a&&a.pantsTex&&!me.owned.includes(a.pantsTex))delete a.pantsTex;",'replace'],
+  "if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;if(a&&a.shirtTex&&!me.owned.includes(a.shirtTex))delete a.shirtTex;if(a&&a.pantsTex&&!me.owned.includes(a.pantsTex))delete a.pantsTex;",'replace'],
  ...CHAT_MARKS.map(mark=>[mark,FILTER_HOOK,'after'])
 ];
 
