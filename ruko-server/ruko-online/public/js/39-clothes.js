@@ -5,7 +5,8 @@
    area and you have short sleeves, paint all of it and you have long sleeves, leave it blank and
    the shirt is sleeveless. Pants are the same idea for the legs.
 
-   A t-shirt graphic is still the old flat decal on the chest (av.tee); this is separate from it. */
+   There is no t-shirt decal (the old av.tee picture stuck on the chest) any more: shirts are worn
+   as shirts, pants as pants. */
 (function(){
  if(window.RKCLOTH)return;
 
@@ -114,10 +115,14 @@
   g.userData.tw=Promise.all([prev,job].filter(Boolean)).catch(()=>{});
  }
 
+ /* there is no t-shirt decal any more: a body wears a shirt item or nothing, never a picture
+    stuck on the chest. Dropping the old fields here kills the decal everywhere at once. */
  const bmp=makePlayer;
  makePlayer=function(hat,av,nm){
-  const g=bmp.apply(this,arguments);
-  try{av=av||{};shirt(g,av);pants(g,av)}catch(e){}
+  const a=av&&typeof av=='object'?{...av}:{};
+  delete a.tee;delete a.teeUrl;
+  const g=bmp.call(this,hat,a,nm);
+  try{shirt(g,a);pants(g,a)}catch(e){}
   return g;
  };
 
@@ -309,8 +314,16 @@
   try{
    const me=cur();
    if(!me)return r;
-   const card=[...app.querySelectorAll('.card')].find(c=>c.querySelector('[data-tee]'));
-   if(card&&!card.querySelector('[data-shirt]')){
+   const card=[...app.querySelectorAll('.card')].find(c=>c.querySelector('[data-tee]')||c.querySelector('[data-shirt]'));
+   if(!card)return r;
+   // the t-shirt graphic row from the base page is removed: shirts and pants are the clothing now
+   const tl=[...card.querySelectorAll('label')].find(l=>/^t-shirt graphic$/i.test(l.textContent.trim()));
+   if(tl){
+    const nx=tl.nextElementSibling;
+    if(nx&&nx.classList.contains('chips'))nx.remove();
+    tl.remove();
+   }
+   if(!card.querySelector('[data-shirt]')){
     const av=me.av||{};
     const owned=me.owned.map(i=>hats().find(h=>h.id==i)).filter(Boolean);
     const shirts=owned.filter(h=>h.kind=='shirt'),ps=owned.filter(h=>h.kind=='pants');
@@ -340,6 +353,26 @@
   try{
    const h=hats().find(x=>x.id==id);
    const eq=$('#eq');
+   if(h&&(h.kind=='pants'||h.kind=='shirt')){
+    // the item page's "Try on" used to glue the picture on as a decal; now it wears the real shirt
+    const img=$('#hi'),t1=$('#t1'),t2=$('#t2'),hr=$('#hr');
+    if(img&&t1&&t2){
+     let tried=0,rot=.4;
+     const wear=()=>{
+      t1.classList.toggle('on',!tried);t2.classList.toggle('on',!!tried);
+      if(hr)hr.style.display=tried?'block':'none';
+      if(!tried)return void(img.src=thumb(h));
+      const a={...(cur().av||{})};
+      a[h.kind=='pants'?'pantsUrl':'shirtUrl']=imgOf(h.id);
+      const m=makePlayer(gearList(cur()),a);
+      m.rotation.y=rot;
+      shotP(img,m,[0,3,6.5],[0,2.1,0]);
+     };
+     t1.onclick=()=>{tried=0;wear()};
+     t2.onclick=()=>{tried=1;wear()};
+     if(hr)hr.oninput=e=>{rot=+e.target.value;wear()};
+    }
+   }
    if(h&&(h.kind=='pants'||h.kind=='shirt')&&eq){
     const field=h.kind=='pants'?'pantsTex':'shirtTex';
     const me=cur(),on=(me.av&&me.av[field])==id;
