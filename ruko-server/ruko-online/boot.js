@@ -195,6 +195,21 @@ const SERVER_MARKS=[
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES2,'before'],
  ["case 'say':r={t,m:sStr(b.m,80)",BLOCK_CASES,'before'],
  ["else if(t=='chatCmd')H={t,m:sStr(h.m,30)};",TRIGGER_CASES,'after'],
+ // Clothes: players publish pants next to shirts, and a shirt carries a sleeves flag.
+ ["const mineS=D.hats.filter(h=>h.kind=='shirt'&&h.creator===me.name);",
+  "const K=b.kind=='pants'?'pants':'shirt';const mineS=D.hats.filter(h=>h.kind==K&&h.creator===me.name);",'replace'],
+ ["D.hats.push({id,kind:'shirt',slot:'shirt',",
+  "D.hats.push({id,kind:K,slot:K,sleeves:K=='shirt'&&b.sleeves!==false?1:0,",'replace'],
+ ["const id=p.slice(11),h=D.hats.find(x=>x.id==id&&x.kind=='shirt'),",
+  "const id=p.slice(11),h=D.hats.find(x=>x.id==id&&(x.kind=='shirt'||x.kind=='pants')),",'replace'],
+ ["const h=D.hats.find(x=>x.id==b.id&&x.kind=='shirt');if(!h)return send(res,404,{error:'Not found.'});",
+  "const h=D.hats.find(x=>x.id==b.id&&(x.kind=='shirt'||x.kind=='pants'));if(!h)return send(res,404,{error:'Not found.'});",'replace'],
+ // The avatar may also wear a pair of pants the player made.
+ ["tee:typeof a.tee=='string'&&/^[\\w-]{1,30}$/.test(a.tee)?a.tee:undefined}",
+  "tee:typeof a.tee=='string'&&/^[\\w-]{1,30}$/.test(a.tee)?a.tee:undefined,pantsTex:typeof a.pantsTex=='string'&&/^[\\w-]{1,30}$/.test(a.pantsTex)?a.pantsTex:undefined}",'replace'],
+ // A worn shirt or pair of pants has to be one the player actually owns.
+ ["if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;",
+  "if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;if(a&&a.pantsTex&&!me.owned.includes(a.pantsTex))delete a.pantsTex;",'replace'],
  ...CHAT_MARKS.map(mark=>[mark,FILTER_HOOK,'after'])
 ];
 
@@ -217,7 +232,7 @@ http.createServer=function(handler){
    try{
     let html=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
     // The late overlays are added here, so the page file itself stays untouched.
-    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js','35-game-saves.js','36-tickets.js','38-layout.js'].forEach(name=>{
+    ['30-hat-three.js','31-home-games.js','32-hat-builder.js','33-studio-upgrades.js','34-sound-stop.js','35-game-saves.js','36-tickets.js','38-layout.js','39-clothes.js'].forEach(name=>{
      if(html.indexOf(name)>=0)return;
      // The version is the file's own timestamp, so a changed overlay is never served from cache.
      const hv=Math.round(fs.statSync(path.join(__dirname,'public','js',name)).mtimeMs);
