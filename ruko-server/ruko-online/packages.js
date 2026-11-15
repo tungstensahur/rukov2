@@ -4,6 +4,7 @@
 //   mesh   - per body part, a list of pieces built from the same shapes the accessory editor uses
 // A part with pieces uses them instead of its plain box; a part without pieces keeps its box.
 // Colours may be a hex value or @skin / @shirt / @pants, which follow the player's own colours.
+// A piece may also show the face or the t-shirt instead of a colour (tex).
 // Everything is clamped and nothing is code, so a strange package can never break the rig.
 //   GET  /api/packages
 //   POST /api/packages {action:'create'|'update'|'delete', ...}   (Ruko only)
@@ -11,6 +12,7 @@ const MAX=40, MAXP=16;
 const SHAPES=['box','sphere','dome','cylinder','cone','pyramid','prism','octa','ico','torus'];
 const FINISH=['matte','shiny','metal','glass','neon'];
 const TOKEN=['@skin','@shirt','@pants'];
+const TEX=['none','face','tee'];
 const SLOTS=['head','torso','arms','legs'];
 const N=(o,k,a,b,d)=>{
  const v=o&&typeof o=='object'?+o[k]:NaN;
@@ -32,6 +34,7 @@ const piece=p=>{
   f:FINISH.includes(p.f)?p.f:'matte',
   sx:N(p,'sx',.05,4,1),sy:N(p,'sy',.05,4,1),sz:N(p,'sz',.05,4,1),
   rnd:N(p,'rnd',0,1,0),
+  tex:TEX.includes(String(p.tex))?String(p.tex):'',
   x:N(p,'x',-2.5,2.5,0),y:N(p,'y',-2.5,2.5,0),z:N(p,'z',-2.5,2.5,0),
   r:N(p,'r',-180,180,0),q:N(p,'q',-180,180,0),ry:N(p,'ry',-180,180,0),
   m:p.m?1:0
