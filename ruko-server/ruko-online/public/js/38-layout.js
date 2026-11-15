@@ -161,7 +161,7 @@
  st.textContent=CAT_CSS;
  document.head.appendChild(st);
 
- const SLOTN={head:'Head',face:'Face',back:'Back',shirt:'T-shirt'};
+ const SLOTN={head:'Head',face:'Face',back:'Back',shirt:'Shirt',pants:'Pants'};
  const fresh=h=>h.at>Date.now()-2592e5;
  const flags=(h,top)=>`${h.special?'<span class="cat-flag gold">SPECIAL</span>':fresh(h)?'<span class="cat-flag">NEW</span>':top.includes(h.id)?'<span class="cat-flag">BEST</span>':''}${h.off?'<span class="cat-flag grey" style="left:auto;right:8px">OFF SALE</span>':''}`;
  const tile=(h,me,top)=>`<div class="cat-tile" data-h="${h.id}">
@@ -200,7 +200,7 @@
     <div class="cat-row-h"><h3>Browse everything</h3></div>
     <div class="cat-bar">
      <input id="cq" placeholder="Search items or creators" value="${esc(CF.q)}">
-     <div class="chips">${[['all','All'],['head','Head'],['face','Face'],['back','Back'],['shirt','T-shirts'],['special','✨ Special']].map(([v,n])=>`<button data-sl="${v}" class="${CF.slot==v?'on':''}">${n}</button>`).join('')}</div>
+     <div class="chips">${[['all','All'],['head','Head'],['face','Face'],['back','Back'],['shirt','Shirts'],['pants','Pants'],['special','✨ Special']].map(([v,n])=>`<button data-sl="${v}" class="${CF.slot==v?'on':''}">${n}</button>`).join('')}</div>
      <div class="selrow">${sel('cs',[['pop','Most popular'],['new','Newest'],['lo','Price: low to high'],['hi','Price: high to low'],['like','Most liked']],CF.sort)}${sel('cr',[['all','All creators'],['ruko','Made by Ruko'],['comm','Community']],CF.src)}${sel('co',[['all','All items'],['owned','Owned'],['not','Not owned']],CF.own)}</div>
     </div>
     <div class="cat-grid" id="cg"></div>
