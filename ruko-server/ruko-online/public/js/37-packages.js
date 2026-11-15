@@ -159,14 +159,18 @@
   if(!me)return;
   app.innerHTML='<p class="mut">Loading packages…</p>';
   pull().then(()=>{
-   let S=Object.assign({slot:'head',sel:0},JSON.parse(JSON.stringify(CLASSIC)));
+   let S=Object.assign({slot:'head',sel:0,rot:.4},JSON.parse(JSON.stringify(CLASSIC)));
    S.name='New package';S.mesh={head:[],torso:[],arms:[],legs:[]};
    const draw=()=>{
     const slot=S.slot,list=S.mesh[slot],p=list[Math.min(S.sel,list.length-1)];
     const sl=(k,n,a,b,st,v)=>`<label>${n}</label><input data-p="${k}" type="range" min="${a}" max="${b}" step="${st}" value="${v}">`;
-    app.innerHTML=`<h2>Packages <span class="mut" style="font-size:13px;font-weight:400">Custom bodies for the player rig</span></h2>
-    <div class="hat"><div class="card"><img id="pkpv" alt="" style="width:100%;max-width:340px;display:block;margin:0 auto"><p class="mut" style="font-size:12px">Live preview on a player.</p></div>
-    <div>
+    app.innerHTML=`<style>#pkw .pw{display:grid;gap:12px}@media(min-width:900px){#pkw .pw{grid-template-columns:minmax(250px,340px) 1fr;align-items:start}#pkw .pw>*{min-width:0}#pkw .ps{position:sticky;top:10px}#pkw .ps .card{padding:10px}#pkw #pkpv{max-height:54vh;object-fit:contain}}</style>
+    <h2>Packages <span class="mut" style="font-size:13px;font-weight:400">Custom bodies for the player rig</span></h2>
+    <div id="pkw"><div class="pw">
+    <div class="ps"><div class="card"><img id="pkpv" alt="" style="width:100%;display:block;border-radius:10px;cursor:grab;touch-action:none">
+      <label>Turn the player</label><input id="pkrot" type="range" min="-3.14" max="3.14" step="0.05" value="${S.rot}">
+      <p class="mut" style="font-size:12px;margin:0">Drag the picture to turn it. The preview stays put while you scroll.</p></div></div>
+    <div class="pc">
      <div class="card"><label>Package name</label><input id="pkname" maxlength="24" value="${esc(S.name)}">
       ${SLOTS.map(([k,n])=>`<div class="stg">${n}</div>${['w','h','d'].map((f,i)=>sl(k+'.'+f,['Width','Height','Depth'][i],f=='d'?.25:.15,3,.05,S[k][f])).join('')}`).join('')}
       ${sl('spread','Arm and leg spacing',.5,2,.05,S.spread)}
@@ -186,10 +190,19 @@
       :`<p class="mut" style="font-size:12px">The ${slot} uses its normal shape. Add a piece to build it from shapes instead.</p>
         <button id="madd">+ Add piece</button>`}
      </div>
-    </div></div>
     <h3>All packages</h3><div class="chips">${PK.list.map(x=>`<button data-del="${x.id}">${esc(x.name)} ✕</button>`).join('')||'<span class="mut">None yet.</span>'}</div>
-    <p class="mut" style="font-size:12px">Tap a package to remove it. The classic body stays.</p>`;
-    const repaint=()=>{try{$('#pkpv').src=shot(rig([],SAMPLE,null,Object.assign({},S)),[0,2.8,9],[0,1.9,0])}catch(e){}};
+    <p class="mut" style="font-size:12px">Tap a package to remove it. The classic body stays.</p>
+    </div></div></div>`;
+    const cam=()=>[Math.sin(S.rot)*9,2.8,Math.cos(S.rot)*9];
+    const repaint=()=>{try{$('#pkpv').src=shot(rig([],SAMPLE,null,Object.assign({},S)),cam(),[0,1.9,0])}catch(e){}};
+    const rt=$('#pkrot'),pvEl=$('#pkpv');
+    if(rt)rt.oninput=e=>{S.rot=+e.target.value;repaint()};
+    if(pvEl){
+     let drag=null;
+     pvEl.onpointerdown=e=>{drag={x:e.clientX,r:S.rot};try{pvEl.setPointerCapture(e.pointerId)}catch(_){};pvEl.style.cursor='grabbing'};
+     pvEl.onpointermove=e=>{if(!drag)return;S.rot=Math.max(-3.14,Math.min(3.14,drag.r-(e.clientX-drag.x)*.012));if(rt)rt.value=S.rot;repaint()};
+     pvEl.onpointerup=pvEl.onpointercancel=()=>{drag=null;pvEl.style.cursor='grab'};
+    }
     $('#pkname').oninput=e=>{S.name=e.target.value};
     app.querySelectorAll('[data-p]').forEach(i=>i.oninput=()=>{
      const q=i.dataset.p;
@@ -220,7 +233,7 @@
      const r=await api('/api/packages',{action:'create',name:S.name||'Package',head:S.head,torso:S.torso,arms:S.arms,legs:S.legs,spread:S.spread,mesh:S.mesh});
      if(!r||!r.ok)return toast((r&&r.error)||'Could not create that package.');
      await pull();toast('📦 '+r.package.name+' created.');
-     S=Object.assign({slot:'head',sel:0},JSON.parse(JSON.stringify(CLASSIC)));
+     S=Object.assign({slot:'head',sel:0,rot:.4},JSON.parse(JSON.stringify(CLASSIC)));
      S.name='New package';S.mesh={head:[],torso:[],arms:[],legs:[]};
      draw();
     };
@@ -253,6 +266,11 @@
   b.innerHTML='<span class="ic">📦</span><span class="lb">Packages</span>';
   b.onclick=()=>{location.hash='#/packages';try{closeMore()}catch(e){}};
   nav.appendChild(b);
+  // on a narrow window one more button would push the top bar past the screen edge,
+  // so the entry hides there and the More menu (built from these buttons) carries it instead
+  const doc=document.documentElement;
+  if(doc.scrollWidth>doc.clientWidth+2)b.style.display='none';
+  try{buildMoreSheet(me)}catch(e){}
   return true;
  };
  const navTimer=setInterval(()=>{try{if(addNav())clearInterval(navTimer)}catch(e){}},700);
