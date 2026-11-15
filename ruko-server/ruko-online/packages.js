@@ -31,6 +31,7 @@ const piece=p=>{
   c:TOKEN.includes(c)?c:(/^#[0-9a-f]{3,8}$/i.test(c)?c.toLowerCase():'@skin'),
   f:FINISH.includes(p.f)?p.f:'matte',
   sx:N(p,'sx',.05,4,1),sy:N(p,'sy',.05,4,1),sz:N(p,'sz',.05,4,1),
+  rnd:N(p,'rnd',0,1,0),
   x:N(p,'x',-2.5,2.5,0),y:N(p,'y',-2.5,2.5,0),z:N(p,'z',-2.5,2.5,0),
   r:N(p,'r',-180,180,0),q:N(p,'q',-180,180,0),ry:N(p,'ry',-180,180,0),
   m:p.m?1:0
