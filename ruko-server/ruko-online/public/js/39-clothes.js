@@ -1,34 +1,36 @@
 /* ---------- v39: Roblox-style shirts and pants ---------- */
 /* Classic clothing works like this: the item is a picture laid out as a template, and the body
-   reads it. For a shirt the template has the chest and the back in the middle and one arm down
-   each side, so whatever is painted on an arm area is the sleeve — paint the top half of the arm
-   area and you have short sleeves, paint all of it and you have long sleeves, leave it blank and
-   the shirt is sleeveless. Pants are the same idea for the legs.
+   reads it. A shirt template has the chest and the back in the middle and one arm down each side,
+   so whatever is painted on an arm area is the sleeve — paint the top half and you have short
+   sleeves, paint all of it for long sleeves, leave it blank and the shirt is sleeveless. A pants
+   template is the same idea with one leg each side: paint the top half for shorts, the whole leg
+   for full pants.
 
    There is no t-shirt decal (the old av.tee picture stuck on the chest) any more: shirts are worn
    as shirts, pants as pants. */
 (function(){
  if(window.RKCLOTH)return;
 
- /* a pants item is a picture, so its thumbnail is the picture itself */
+ /* an item is a picture, so its thumbnail is the picture itself */
  const bt=thumb;
  thumb=function(h){
-  try{if(h&&h.kind=='pants')return '/api/shirt/'+h.id+'?v='+(h.tv||0)}catch(e){}
+  try{if(h&&(h.kind=='pants'||h.kind=='shirt'))return '/api/shirt/'+h.id+'?v='+(h.tv||0)}catch(e){}
   return bt.apply(this,arguments);
  };
  thumb.c=bt.c||{}; // the old thumbnail keeps its cache on the function itself
  const imgOf=id=>{const h=hats().find(x=>x.id==id);return h?'/api/shirt/'+id+'?v='+(h.tv||0):null};
 
- /* ---------- the shirt template ---------- */
+ /* ---------- the templates ---------- */
  const TW=600,TH=400;
  const REG={front:{x:150,y:0,w:300,h:200},back:{x:150,y:200,w:300,h:200},la:{x:0,y:0,w:150,h:400},ra:{x:450,y:0,w:150,h:400}};
+ const PREG={lf:{x:0,y:0,w:300,h:400},rf:{x:300,y:0,w:300,h:400}};
  const tex=cv=>{const t=new THREE.CanvasTexture(cv);t.needsUpdate=true;return t};
  const cut=(im,r,base)=>{
   const cv=document.createElement('canvas');
   cv.width=Math.max(1,Math.round(r.w/2));
   cv.height=Math.max(1,Math.round(r.h/2));
   const x=cv.getContext('2d');
-  // whatever the template leaves unpainted stays the body's own colour, so bare arms look like skin
+  // whatever the template leaves unpainted stays the body's own colour, so bare arms and legs look like skin
   x.fillStyle=base||'#ffffff';
   x.fillRect(0,0,cv.width,cv.height);
   x.drawImage(im,r.x,r.y,r.w,r.h,0,0,cv.width,cv.height);
@@ -59,7 +61,17 @@
   }catch(e){return base||'#ffffff'}
  };
 
- /* the body reads the template: chest, back, and one arm each side */
+ /* one limb gets its area on the four sides, and a flat colour on the two ends */
+ const dressLimb=(im,limb,r,base,edgeBase)=>{
+  const mesh=limb&&limb.children[0];
+  if(!mesh)return;
+  const side=new THREE.MeshLambertMaterial({map:cut(im,r,base)});
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+  mesh.material=[side,side,M(edgeColour(im,r,edgeBase,'top')),M(edgeColour(im,r,edgeBase,'bottom')),side,side];
+  mesh.material.forEach(m=>{m.needsUpdate=true});
+ };
+
+ /* the body reads the shirt template: chest, back, and one arm each side */
  function shirt(g,av){
   const item=av.shirtTex?hats().find(h=>h.id==av.shirtTex):null;
   const url=av.shirtUrl||(item?imgOf(item.id):null);
@@ -80,36 +92,33 @@
    torso.material.forEach(m=>{m.needsUpdate=true});
    if(wide){
     const L=g.userData&&g.userData.l;
-    const put=(limb,reg)=>{
-     const mesh=limb&&limb.children[0];
-     if(!mesh)return;
-     const R=REG[reg];
-     const side=new THREE.MeshLambertMaterial({map:cut(im,R,skinCol)});
-     // looking down at a player you see the top of the arm: that is the sleeve colour (or the
-     // player's skin when the arm was left bare), never a squashed copy of the arm picture
-     mesh.material=[side,side,M(edgeColour(im,R,skinCol,'top')),M(edgeColour(im,R,skinCol,'bottom')),side,side];
-     mesh.material.forEach(m=>{m.needsUpdate=true});
-    };
-    put(L&&L.la,'la');
-    put(L&&L.ra,'ra');
+    // looking down at the top of an arm you see the sleeve colour, and at the wrist the cuff or skin
+    dressLimb(im,L&&L.la,REG.la,skinCol,skinCol);
+    dressLimb(im,L&&L.ra,REG.ra,skinCol,skinCol);
    }
   }).catch(()=>{});
   const prev=g.userData.tw;
   g.userData.tw=Promise.all([prev,job].filter(Boolean)).catch(()=>{});
  }
 
- /* ---------- the pants ---------- */
+ /* the legs read the pants template: one area each side, shorts when only the top is painted */
  function pants(g,av){
   const L=g&&g.userData&&g.userData.l;
   if(!L)return;
   const src=av.pantsUrl||(av.pantsTex?imgOf(av.pantsTex):null);
   if(!src)return;
   const job=loadTee(src).then(im=>{
-   const cv=document.createElement('canvas');
-   cv.width=cv.height=128;
-   cv.getContext('2d').drawImage(im,0,0,128,128);
-   const m=new THREE.MeshLambertMaterial({map:tex(cv)});
-   [L.ll,L.rl].forEach(gp=>{const q=gp&&gp.children[0];if(q){q.material=m;q.material.needsUpdate=true}});
+   if(!im)return;
+   const skinCol=/^#[0-9a-f]{6}$/i.test(String(av.skin||''))?av.skin:'#f5cd30';
+   const wide=im.width/im.height>1.3; // the template is 3:2; an older square design is 1:1
+   if(wide){
+    dressLimb(im,L.ll,PREG.lf,skinCol,skinCol);
+    dressLimb(im,L.rl,PREG.rf,skinCol,skinCol);
+   }else{
+    const all={x:0,y:0,w:im.width,h:im.height};
+    dressLimb(im,L.ll,all,skinCol,skinCol);
+    dressLimb(im,L.rl,all,skinCol,skinCol);
+   }
   }).catch(()=>{});
   const prev=g.userData.tw;
   g.userData.tw=Promise.all([prev,job].filter(Boolean)).catch(()=>{});
@@ -127,7 +136,7 @@
  };
 
  /* ---------- the designers ---------- */
- const blank=()=>({col:'#2f6fed',im:null,scale:1,ox:0,oy:0,text:'',tc:'#ffffff',ts:40,cover:'full'});
+ const blank=()=>({col:'#2f6fed',im:null,scale:1,ox:0,oy:0,text:'',tc:'#ffffff',ts:40,length:'full'});
  let SE=null,PE=null;
  const panel=p=>`<label>Colour</label><input id="cc" type="color" value="${p.col}">
     <button class="pri" id="cu" style="width:100%">Choose image</button>
@@ -141,23 +150,26 @@
 
  function editor(me,kind){
   const isP=kind=='pants';
-  if(isP){if(!PE)PE={kind:'pants',name:'My Pants',price:50,bgOn:false,bg:'#ffffff',rot:.3,part:blank()}}
+  if(isP){if(!PE)PE={kind:'pants',name:'My Pants',price:50,rot:.3,sel:'lf',same:true,lf:blank(),rf:blank()}}
   else if(!SE)SE={kind:'shirt',name:'My Shirt',price:50,rot:.3,sel:'front',same:true,
-   front:blank(),back:blank(),la:Object.assign(blank(),{col:'#2f6fed'}),ra:blank()};
+   front:blank(),back:blank(),la:blank(),ra:blank()};
   const E=$('#ed');
   if(!E)return;
   const S=isP?PE:SE;
-  const curPart=()=>isP?S.part:(S.sel=='ra'&&S.same?S.la:S[S.sel]);
-  const tabs=()=>isP?'':`<div class="chips" id="sr">${[['front','Front'],['back','Back'],['la',S.same?'Arms':'Left arm']].concat(S.same?[]:[['ra','Right arm']]).map(([k,n])=>`<button data-r="${k}" class="${S.sel==k?'on':''}">${n}</button>`).join('')}</div>
-    <label><input id="same" type="checkbox" ${S.same?'checked':''}> Same artwork on both arms</label>`;
+  const other=S.same?(isP?'rf':'ra'):null;
+  const curPart=()=>other&&S.sel==other?S[isP?'lf':'la']:S[S.sel];
+  const tabs=()=>`<div class="chips" id="sr">${(isP
+     ?[['lf',S.same?'Legs':'Left leg']].concat(S.same?[]:[['rf','Right leg']])
+     :[['front','Front'],['back','Back'],['la',S.same?'Arms':'Left arm']].concat(S.same?[]:[['ra','Right arm']])
+    ).map(([k,n])=>`<button data-r="${k}" class="${S.sel==k?'on':''}">${n}</button>`).join('')}</div>
+    <label><input id="same" type="checkbox" ${S.same?'checked':''}> Same artwork on both ${isP?'legs':'arms'}</label>`;
   const shell=()=>`<div class="hat">
    <div class="card"><img id="cp" alt=""><label>Rotate</label><input id="cr" type="range" min="-3.14" max="3.14" step=".05" value="${S.rot}">
     <p class="mut" style="font-size:12px">${isP
-      ?'Pants are a picture worn on the legs. Everything is reviewed by Ruko before it appears in the catalog.'
+      ?'Pants work like classic clothing: each leg has its own area, so a picture sits on the leg instead of being stretched over the whole body. Paint the top half only for shorts, or the whole leg for full pants.'
       :'Shirts work like classic clothing: the chest, the back and the two arms each have their own area, so whatever you paint on an arm becomes the sleeve. Leave the arms blank for a sleeveless shirt, or paint just the top half for short sleeves.'}</p></div>
    <div class="card">${tabs()}
-    <div id="covwrap" style="display:${(S.sel=='la'||S.sel=='ra')?'':'none'}"><label>Sleeve length</label><select id="cov"><option value="full" ${S.la&&S.la.cover!='top'?'selected':''}>Whole arm (long sleeve)</option><option value="top" ${S.la&&S.la.cover=='top'?'selected':''}>Top half only (short sleeve)</option></select></div>
-    ${isP?`<label><input id="cb" type="checkbox" ${S.bgOn?'checked':''}> Fill the whole pair</label><input id="cbc" type="color" value="${S.bg}">`:''}
+    <div id="covwrap" style="display:${isP||S.sel=='la'||S.sel=='ra'?'':'none'}"><label>${isP?'Length':'Sleeve length'}</label><select id="cov"><option value="full" ${(isP?(S.lf||{}).length:S.la.length)!='top'?'selected':''}>${isP?'Full pants (down to the ankle)':'Whole arm (long sleeve)'}</option><option value="top" ${(isP?(S.lf||{}).length:S.la.length)=='top'?'selected':''}>${isP?'Shorts (stop above the knee)':'Top half only (short sleeve)'}</option></select></div>
     <div id="pp"></div></div></div>
    <div class="card" style="margin-top:12px"><label>Name</label><input id="cn" maxlength="20" value="${esc(S.name)}">
     <label>Price (Rukos)</label><input id="cpr" type="number" min="0" max="1000" value="${S.price}">
@@ -166,30 +178,18 @@
    $('#pp').innerHTML=panel(curPart());
    wire();
   };
-  const composePants=()=>{
-   const p=S.part;
-   const c=document.createElement('canvas');
-   c.width=c.height=256;
-   const x=c.getContext('2d');
-   if(S.bgOn){x.fillStyle=S.bg;x.fillRect(0,0,256,256)}
-   if(p.im){const s=Math.min(256/p.im.width,256/p.im.height)*p.scale,w=p.im.width*s,h=p.im.height*s;x.drawImage(p.im,128-w/2+p.ox*128,128-h/2+p.oy*128,w,h)}
-   if(p.text){x.textAlign='center';x.textBaseline='middle';x.font='bold '+p.ts+'px sans-serif';x.lineWidth=Math.max(2,p.ts/12);x.strokeStyle='#0009';x.strokeText(p.text,128,128,240);x.fillStyle=p.tc;x.fillText(p.text,128,128,240)}
-   let u=c.toDataURL('image/png');
-   if(u.length>170000){u=c.toDataURL('image/jpeg',.85)}
-   return u;
-  };
-  const composeShirt=()=>{
+  const compose=()=>{
    const c=document.createElement('canvas');
    c.width=TW;c.height=TH;
    const x=c.getContext('2d');
-   const paint=(reg,r,arm)=>{
+   const paint=(reg,r,len)=>{
     x.save();
     x.beginPath();
     x.rect(r.x,r.y,r.w,r.h);
     x.clip();
-    // an arm area left bare stays transparent, so the game shows the player's own skin there
+    // an arm or leg left bare stays transparent, so the game shows the player's own skin there
     x.clearRect(r.x,r.y,r.w,r.h);
-    const topH=arm&&reg.cover=='top'?Math.round(r.h*.5):r.h;
+    const topH=len&&reg.length=='top'?Math.round(r.h*.5):r.h;
     x.fillStyle=reg.col;
     x.fillRect(r.x,r.y,r.w,topH);
     if(reg.im){
@@ -207,18 +207,23 @@
      x.font='bold '+reg.ts+'px sans-serif';
      x.lineWidth=Math.max(2,reg.ts/12);
      x.strokeStyle='#0009';
-     const cy=r.y+(arm&&reg.cover=='top'?topH/2:r.h/2);
+     const cy=r.y+(len&&reg.length=='top'?topH/2:r.h/2);
      x.strokeText(reg.text,r.x+r.w/2,cy,r.w*.9);
      x.fillStyle=reg.tc;
      x.fillText(reg.text,r.x+r.w/2,cy,r.w*.9);
     }
     x.restore();
    };
-   paint(S.front,REG.front,false);
-   paint(S.back,REG.back,false);
-   paint(S.la,REG.la,true);
-   paint(S.same?S.la:S.ra,REG.ra,true);
-   // keep it a PNG: the bare part of an arm is transparency, and JPEG would turn that black
+   if(isP){
+    paint(S.lf,PREG.lf,true);
+    paint(S.same?S.lf:S.rf,PREG.rf,true);
+   }else{
+    paint(S.front,REG.front,false);
+    paint(S.back,REG.back,false);
+    paint(S.la,REG.la,true);
+    paint(S.same?S.la:S.ra,REG.ra,true);
+   }
+   // keep it a PNG: the bare part of an arm or leg is transparency, and JPEG would turn that black
    let u=c.toDataURL('image/png');
    for(const w of [450,300]){
     if(u.length<=170000)break;
@@ -231,7 +236,7 @@
   };
   const draw=()=>{
    if(!$('#cp'))return;
-   const url=isP?composePants():composeShirt();
+   const url=compose();
    const av={...(me.av||{})};
    const m=isP?makePlayer(gearList(me),{...av,pantsUrl:url}):makePlayer(gearList(me),{...av,shirtUrl:url});
    m.rotation.y=S.rot;
@@ -252,8 +257,6 @@
    E.querySelectorAll('#pp [data-c]').forEach(i=>i.oninput=()=>{p[i.dataset.c]=+i.value;if(i.dataset.c=='scale')$('#cvs').textContent=i.value;if(i.dataset.c=='ts')$('#cvt').textContent=i.value;draw()});
    $('#ct').oninput=e=>{p.text=e.target.value;draw()};
    $('#ctc').oninput=e=>{p.tc=e.target.value;draw()};
-   if($('#cb'))$('#cb').onchange=e=>{S.bgOn=e.target.checked;draw()};
-   if($('#cbc'))$('#cbc').oninput=e=>{S.bg=e.target.value;draw()};
   };
   E.innerHTML=shell();
   drawPanel();
@@ -263,16 +266,15 @@
    S.sel=b.dataset.r;
    E.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r==S.sel));
    const w=$('#covwrap');
-   if(w)w.style.display=(S.sel=='la'||S.sel=='ra')?'':'none';
+   if(w)w.style.display=(isP||S.sel=='la'||S.sel=='ra')?'':'none';
    drawPanel();draw();
   });
-  if($('#cov'))$('#cov').onchange=e=>{curPart().cover=e.target.value;draw()};
-  if($('#same'))$('#same').onchange=e=>{S.same=e.target.checked;E.innerHTML=shell();drawPanel();draw()};
+  if($('#cov'))$('#cov').onchange=e=>{curPart().length=e.target.value;draw()};
+  if($('#same'))$('#same').onchange=e=>{S.same=e.target.checked;if(S.same){S.sel=isP?'lf':'front'}E.innerHTML=shell();drawPanel();draw()};
   $('#cn').oninput=e=>S.name=e.target.value;
   $('#cpr').oninput=e=>S.price=+e.target.value;
   $('#cs').onclick=()=>{
-   const body={kind,name:S.name.trim()||(isP?'My Pants':'My Shirt'),price:Math.max(0,Math.min(1000,S.price||0)),img:isP?composePants():composeShirt()};
-   if(isP&&!S.part.im&&!S.part.text&&!S.bgOn)return toast('Add an image, some text or a fill colour first.');
+   const body={kind,name:S.name.trim()||(isP?'My Pants':'My Shirt'),price:Math.max(0,Math.min(1000,S.price||0)),img:compose()};
    api('/api/shirts',body).then(r=>{
     if(!r||r.error)return toast((r&&r.error)||'Could not submit.');
     toast(r.status=='approved'?'Published!':'Submitted! Ruko will review it before it appears in the catalog.',true);
@@ -354,7 +356,7 @@
    const h=hats().find(x=>x.id==id);
    const eq=$('#eq');
    if(h&&(h.kind=='pants'||h.kind=='shirt')){
-    // the item page's "Try on" used to glue the picture on as a decal; now it wears the real shirt
+    // the item page's "Try on" used to glue the picture on as a decal; now it wears the real item
     const img=$('#hi'),t1=$('#t1'),t2=$('#t2'),hr=$('#hr');
     if(img&&t1&&t2){
      let tried=0,rot=.4;
