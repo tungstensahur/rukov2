@@ -33,17 +33,29 @@
   x.drawImage(im,r.x,r.y,r.w,r.h,0,0,cv.width,cv.height);
   return tex(cv);
  };
- const colourOf=(im,r,base)=>{
+ /* the colour along one edge of an area. A limb's top and bottom are seen from above and below,
+    where classic clothing shows a flat colour (the sleeve at the shoulder, the skin at the wrist)
+    rather than the picture. Anything the template left transparent falls back to the base colour. */
+ const edgeColour=(im,r,base,which)=>{
   try{
+   const vert=which=='left'||which=='right';
    const cv=document.createElement('canvas');
-   cv.width=cv.height=1;
+   cv.width=vert?1:Math.max(1,Math.round(r.w/4));
+   cv.height=vert?Math.max(1,Math.round(r.h/4)):1;
    const x=cv.getContext('2d');
    x.fillStyle=base||'#ffffff';
-   x.fillRect(0,0,1,1);
-   x.drawImage(im,r.x,r.y,r.w,r.h,0,0,1,1);
-   const d=x.getImageData(0,0,1,1).data;
-   return '#'+((1<<24)+(d[0]<<16)+(d[1]<<8)+d[2]).toString(16).slice(1);
-  }catch(e){return '#2f6fed'}
+   x.fillRect(0,0,cv.width,cv.height);
+   const band=Math.max(1,Math.round((vert?r.w:r.h)*.06));
+   const sx=which=='right'?r.x+r.w-band:r.x;
+   const sy=which=='bottom'?r.y+r.h-band:r.y;
+   if(vert)x.drawImage(im,sx,r.y,band,r.h,0,0,cv.width,cv.height);
+   else x.drawImage(im,r.x,sy,r.w,band,0,0,cv.width,cv.height);
+   const d=x.getImageData(0,0,cv.width,cv.height).data;
+   let R=0,G=0,B=0;const n=d.length/4;
+   for(let i=0;i<d.length;i+=4){R+=d[i];G+=d[i+1];B+=d[i+2]}
+   const h=v=>Math.round(v/n).toString(16).padStart(2,'0');
+   return '#'+h(R)+h(G)+h(B);
+  }catch(e){return base||'#ffffff'}
  };
 
  /* the body reads the template: chest, back, and one arm each side */
@@ -58,18 +70,24 @@
    const bodyCol=/^#[0-9a-f]{6}$/i.test(String(av.shirt||''))?av.shirt:'#2f6fed',skinCol=/^#[0-9a-f]{6}$/i.test(String(av.skin||''))?av.skin:'#f5cd30';
    const wide=im.width/im.height>1.3; // the template is 3:2; an older square design is 1:1
    const body=wide?REG.front:{x:0,y:0,w:im.width,h:im.height};
-   const side=new THREE.MeshLambertMaterial({color:colourOf(im,body,bodyCol)});
+   const M=c=>new THREE.MeshLambertMaterial({color:c});
    const front=new THREE.MeshLambertMaterial({map:cut(im,body,bodyCol)});
    const back=new THREE.MeshLambertMaterial({map:cut(im,wide?REG.back:body,bodyCol)});
-   torso.material=[side,side,side,side,front,back];
+   // the sides continue the picture; the shoulders and the hem are the shirt colour, not the artwork
+   torso.material=[M(edgeColour(im,body,bodyCol,'right')),M(edgeColour(im,body,bodyCol,'left')),
+    M(edgeColour(im,body,bodyCol,'top')),M(edgeColour(im,body,bodyCol,'bottom')),front,back];
    torso.material.forEach(m=>{m.needsUpdate=true});
    if(wide){
     const L=g.userData&&g.userData.l;
     const put=(limb,reg)=>{
      const mesh=limb&&limb.children[0];
      if(!mesh)return;
-     mesh.material=new THREE.MeshLambertMaterial({map:cut(im,REG[reg],skinCol)});
-     mesh.material.needsUpdate=true;
+     const R=REG[reg];
+     const side=new THREE.MeshLambertMaterial({map:cut(im,R,skinCol)});
+     // looking down at a player you see the top of the arm: that is the sleeve colour (or the
+     // player's skin when the arm was left bare), never a squashed copy of the arm picture
+     mesh.material=[side,side,M(edgeColour(im,R,skinCol,'top')),M(edgeColour(im,R,skinCol,'bottom')),side,side];
+     mesh.material.forEach(m=>{m.needsUpdate=true});
     };
     put(L&&L.la,'la');
     put(L&&L.ra,'ra');
