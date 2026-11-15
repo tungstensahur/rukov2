@@ -34,13 +34,18 @@
   if(p.f=='glass')return new THREE.MeshPhongMaterial({color:c,shininess:120,transparent:true,opacity:.45});
   return new THREE.MeshLambertMaterial({color:c});
  };
- function pieceMesh(pc){
-  const p=pc||{},g=new THREE.Group();
+ /* tex lets a piece carry the face or the t-shirt instead of a flat colour, so a custom head or
+    torso still looks like the person wearing it. */
+ function pieceMesh(pc,T){
+  const p=pc||{},g=new THREE.Group(),tx=T||{};
   const rnd=Math.max(0,Math.min(1,+p.rnd||0)),sx=+p.sx||1,sy=+p.sy||1,sz=+p.sz||1;
   const mk=(x,s)=>{
    const round=p.t=='box'&&rnd>0;
    const geo=round?roundBox(sx,sy,sz,rnd*Math.min(sx,sy,sz)/2,8):(GEO[p.t]||GEO.box)();
-   const m=new THREE.Mesh(geo,pieceMat(p));
+   const plain=pieceMat(p),fc=p.tex=='face'&&tx.face?tx.face:null,te=p.tex=='tee'&&tx.tee?tx.tee:null;
+   let mt=plain;
+   if(fc||te)mt=geo.groups&&geo.groups.length===6?[plain,plain,plain,plain,fc||te,te||plain]:(fc||te);
+   const m=new THREE.Mesh(geo,mt);
    if(!round)m.scale.set(sx,sy,sz);
    m.position.set(x,+p.y||0,+p.z||0);
    m.rotation.order='YXZ';
@@ -69,9 +74,23 @@
    if(c=='@skin')out.c=av.skin;else if(c=='@shirt')out.c=av.shirt;else if(c=='@pants')out.c=av.pants;
    return out;
   };
-  const art=(list)=>{const q=new THREE.Group();(list||[]).forEach(pc=>{try{q.add(pieceMesh(wear(pc)))}catch(e){}});return q};
+  const teeMat=()=>{
+   const m=new THREE.MeshLambertMaterial({color:av.shirt});
+   if(tu)loadTee(tu).then(im=>{
+    const cv=document.createElement('canvas');cv.width=cv.height=256;
+    const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);
+    m.map=new THREE.CanvasTexture(cv);m.color.set('#ffffff');m.needsUpdate=true;
+   }).catch(()=>{});
+   return m;
+  };
+  const TX={face:new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),tee:teeMat()};
+  const art=(list)=>{const q=new THREE.Group();(list||[]).forEach(pc=>{try{q.add(pieceMesh(wear(pc),TX))}catch(e){}});return q};
 
-  const hp=pieces(P,'head'),tp=pieces(P,'torso'),ap=pieces(P,'arms'),lp=pieces(P,'legs');
+  let hp=pieces(P,'head'),tp=pieces(P,'torso');
+  const ap=pieces(P,'arms'),lp=pieces(P,'legs');
+  // packages built before pieces could show a face or a t-shirt keep looking like the person wearing them
+  if(hp.length&&!hp.some(x=>x.tex))hp=[Object.assign({},hp[0],{tex:'face'})].concat(hp.slice(1));
+  if(tp.length&&!tp.some(x=>x.tex))tp=[Object.assign({},tp[0],{tex:'tee'})].concat(tp.slice(1));
   if(tp.length){const m=art(tp);m.position.set(0,torsoY,0);g.add(m)}
   else{
    g.add(bx(to.w,to.h,to.d,[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm],torsoY,8,.13));
@@ -174,11 +193,11 @@
  }catch(e){}
 
  /* ---------- the Ruko package page ---------- */
- const fresh=()=>({t:'box',c:'@skin',f:'matte',sx:.5,sy:.5,sz:.5,x:0,y:0,z:0,r:0,q:0,ry:0,rnd:0,m:0});
+ const fresh=()=>({t:'box',c:'@skin',f:'matte',sx:.5,sy:.5,sz:.5,x:0,y:0,z:0,r:0,q:0,ry:0,rnd:0,tex:'none',m:0});
  const seed=(S,k)=>{
   const D=dims(S),p=fresh();
-  if(k=='head')Object.assign(p,{t:'sphere',sx:D.head.w,sy:D.head.h,sz:D.head.d});
-  else if(k=='torso')Object.assign(p,{sx:D.torso.w,sy:D.torso.h,sz:D.torso.d,rnd:.25});
+  if(k=='head')Object.assign(p,{t:'sphere',sx:D.head.w,sy:D.head.h,sz:D.head.d,tex:'face'});
+  else if(k=='torso')Object.assign(p,{sx:D.torso.w,sy:D.torso.h,sz:D.torso.d,rnd:.25,tex:'tee'});
   else if(k=='arms')Object.assign(p,{c:'@skin',sx:D.arms.w,sy:D.arms.h,sz:D.arms.w,y:-D.arms.h/2});
   else Object.assign(p,{c:'@pants',sx:D.legs.w,sy:D.legs.h,sz:D.legs.w,y:-D.legs.h/2});
   S.mesh[k]=[p];S.sel=0;
@@ -215,10 +234,11 @@
        <label>Colour</label><select id="mcol">${COLOURS.map(([v,n])=>`<option value="${v}" ${p.c==v?'selected':''}>${n} (follows the wearer)</option>`).join('')}<option value="custom" ${COLOURS.some(c=>c[0]==p.c)?'':'selected'}>Custom colour</option></select>
        <input id="mcc" type="color" value="${/^#/.test(p.c)?p.c:'#f5cd30'}">
        <label>Finish</label><select id="mfin">${FINISH.map(k=>`<option ${k==p.f?'selected':''}>${k}</option>`).join('')}</select>
+       <label>Shows</label><select id="mtex"><option value="none" ${!p.tex||p.tex=='none'?'selected':''}>Just its colour</option><option value="face" ${p.tex=='face'?'selected':''}>The face</option><option value="tee" ${p.tex=='tee'?'selected':''}>The t-shirt</option></select>
        ${p.t=='box'?`<label>Round the corners</label><input data-p="pc.rnd" type="range" min="0" max="1" step="0.02" value="${p.rnd||0}"><p class="mut" style="font-size:12px;margin:0">0 keeps a square box, 1 rounds it as far as it goes.</p>`:''}
        ${FIELDS.map(([k,n,a,b,st])=>sl('pc.'+k,n,a,b,st,p[k])).join('')}
        <label><input id="mmir" type="checkbox" ${p.m?'checked':''}> Mirror to the other side</label>
-       <p class="mut" style="font-size:12px">${slot=='arms'||slot=='legs'?'One limb is built and copied to the other side.':'A custom '+slot+' replaces the normal one'+(slot=='head'?' including the face.':' including the shirt colours.')}</p>`
+       <p class="mut" style="font-size:12px">${slot=='arms'||slot=='legs'?'One limb is built and copied to the other side.':'A custom '+slot+' replaces the normal one. Put the face or the t-shirt on a piece to keep them.'}</p>`
       :`<p class="mut" style="font-size:12px">The ${slot} uses its normal shape. Add a piece to build it from shapes instead.</p>
         <button id="madd">+ Add piece</button>`}
      </div>
@@ -259,6 +279,7 @@
      $('#mcol').onchange=e=>{p.c=e.target.value=='custom'?($('#mcc').value||'#f5cd30'):e.target.value;draw()};
      $('#mcc').oninput=e=>{if(!COLOURS.some(c=>c[0]==p.c)){p.c=e.target.value;repaint()}};
      $('#mfin').onchange=e=>{p.f=e.target.value;repaint()};
+     $('#mtex').onchange=e=>{p.tex=e.target.value;repaint()};
      $('#mmir').onchange=e=>{p.m=e.target.checked?1:0;repaint()};
     }
     $('#pksave').onclick=async()=>{
