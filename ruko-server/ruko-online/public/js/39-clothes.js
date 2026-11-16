@@ -387,4 +387,15 @@
  };
 
  window.RKCLOTH={editor,kind:k=>editor(cur(),k)};
+
+ /* this is the last file the page loads, so it also starts the mobile game controls. They live in
+    their own file because they have nothing to do with clothing, but the page only carries the
+    overlays boot.js knows about, so one of them has to fetch it. */
+ try{
+  if(!window.RKTOUCH){
+   const s=document.createElement('script');
+   s.src='js/40-game-touch.js?v='+Date.now();
+   document.body.appendChild(s);
+  }
+ }catch(e){}
 })();
