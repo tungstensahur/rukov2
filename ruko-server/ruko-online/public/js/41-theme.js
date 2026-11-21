@@ -170,6 +170,15 @@ input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--a
 [data-dev=mobile] #top nav button{color:#c9cee0;border:1px solid transparent;border-radius:10px;font-size:11.5px}
 [data-dev=mobile] #top nav button.on{background:var(--ac);color:#fff}
 `;
+ // The in-game chat is part of the same look, and this file is the last one the page loads, so it
+ // starts it the same way 39-clothes.js starts this one.
+ try{
+  if(!window.RKGC){
+   const g=document.createElement('script');
+   g.src='js/42-ingame-chat.js?v='+Date.now();
+   document.body.appendChild(g);
+  }
+ }catch(e){}
  const st=document.createElement('style');
  st.id='rk-theme';
  st.textContent=CSS;
