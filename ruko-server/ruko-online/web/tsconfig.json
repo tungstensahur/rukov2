@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "preserve",
+    "lib": ["ES2019", "DOM"],
+    "outDir": "../public/js",
+    "rootDir": ".",
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "skipLibCheck": true,
+    "removeComments": false,
+    "newLine": "lf",
+    "types": []
+  },
+  "include": ["*.ts"]
+}

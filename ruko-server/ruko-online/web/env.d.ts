@@ -1,0 +1,85 @@
+// The shared runtime the game core (00-boot-and-core.js) puts on window. The website modules
+// are compiled from TypeScript; this file describes the handful of globals they all rely on.
+declare const app: HTMLElement;
+declare function $(sel: string): any;
+declare function $$(sel: string): any[];
+declare function api(path: string, body?: any, method?: string): Promise<any>;
+declare const ls: { get(k: string, d?: any): any; set(k: string, v: any): void; del(k: string): void };
+declare let ME: any;
+declare let PL: any[];
+declare let TOKEN: any;
+declare function cur(): any;
+declare function key(): string;
+declare function users(): any;
+declare function esc(v: any): string;
+declare function toast(msg: string, good?: boolean): void;
+declare function hash(pw: string): Promise<string>;
+declare function loadAll(): Promise<any>;
+declare function render(): void;
+declare function saveUser(u: any): void;
+declare function shareBuy(id: string): void;
+declare function play(g: any, server?: any): void;
+declare function closeMore(): void;
+declare function buildMoreSheet(me: any): void;
+declare function adminView(): void;
+declare function chatView(): void;
+declare function friendsView(): void;
+declare function messagesView(name: string | null): void;
+declare function settingsView(): void;
+declare function avatar(): void;
+declare function servers(): void;
+declare let CHT: any;
+declare let DMT: any;
+declare function thumb(h: any): string;
+declare function sales(h: any): number;
+declare function hats(): any[];
+declare function games(): any[];
+declare function gGenre(g: any): string;
+declare function makePlayer(gear: any[], av: any): any;
+declare function shotP(img: any, model: any, pos: number[], look: number[]): void;
+declare function shot(model: any, pos: number[], look: number[]): string;
+declare function gearList(me: any): any[];
+declare function hatTile(h: any, me: any, extra: any[]): string;
+declare function gcard(g: any): string;
+declare function playAuto(g: any): any;
+declare function editGame(id: string): void;
+declare function aq(): string;
+declare function op(k: string): string;
+declare function sel(kind: string, key: string, opts: any[][]): string;
+declare function pager(n: number): string;
+declare function imgOf(h: any): string;
+declare function fGames(): any[];
+declare const DEF_HATS: any[];
+declare const SH: any[];
+declare const SG: any[];
+declare const LK: any;
+declare const PGS: number;
+declare const GEN: string[];
+declare let AD: any;
+declare let GF: any;
+declare let CTAB: any;
+declare let eqd: any;
+declare let beat: any;
+declare function home(): void;
+declare function catalog(): void;
+declare function create(tab?: string): void;
+declare function hatPage(id: string): void;
+declare function authView(mode: string): void;
+
+// The code relies on the older habit of reading `id`/`value`/`dataset` straight off an event
+// target; describe those on the DOM interface so the modules stay readable.
+interface EventTarget {
+  id: string;
+  value: string;
+  checked: boolean;
+  dataset: any;
+  closest(sel: string): any;
+  querySelector(sel: string): any;
+  querySelectorAll(sel: string): any;
+  textContent: string;
+  innerHTML: string;
+  style: any;
+  files: any;
+  insertAdjacentHTML(where: string, html: string): void;
+  scrollIntoView(): void;
+}
