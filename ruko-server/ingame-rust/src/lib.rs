@@ -10,7 +10,16 @@
 // the landed-platform index this returns.
 //
 // Built with `cargo build --release --target wasm32-unknown-unknown` (see build.sh). No allocator,
-// no wasm-bindgen: two fixed buffers and plain f64 calls.
+// no wasm-bindgen, and no std: plain f64 arithmetic on two fixed buffers, so the module stays a few
+// kilobytes and carries no formatting or panic machinery.
+#![no_std]
+
+use core::panic::PanicInfo;
+
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
 
 const MAX_PLATS: usize = 400;
 const STRIDE: usize = 8;
@@ -21,6 +30,24 @@ static mut OUT: [f64; 16] = [0.0; 16];
 // Platform type codes, the first letter of each type name in the editor.
 const T_LAVA: f64 = 108.0; // l
 const T_BOUNCE: f64 = 98.0; // b
+
+#[inline]
+fn fabs(v: f64) -> f64 {
+    if v < 0.0 {
+        -v
+    } else {
+        v
+    }
+}
+
+#[inline]
+fn fmax(a: f64, b: f64) -> f64 {
+    if a > b {
+        a
+    } else {
+        b
+    }
+}
 
 /// Where JavaScript writes the platform list: x, y, z, sx, sz, thickness, type, off.
 #[no_mangle]
@@ -51,7 +78,7 @@ fn sign_or(v: f64, fallback: f64) -> f64 {
 /// `jbuf` the jump buffer, `coy` the coyote timer, `want_jump` whether jump is held this frame and
 /// `was_jump` whether it was held last frame (to detect the press).
 ///
-/// Returns the populated result through `rk_out_ptr`:
+/// The result is written through `rk_out_ptr`:
 ///   0 x, 1 y, 2 z, 3 vx, 4 vz, 5 vy,
 ///   6 grounded, 7 landed platform index (-1 none),
 ///   8 flags (1 hit lava from the side, 2 bounced, 4 stood on a small ledge, 8 landed in lava),
@@ -85,30 +112,33 @@ pub extern "C" fn rk_step(
     let jump_power = if jmp > 0.0 { jmp } else { 9.0 };
     let grounded = on_ground > 0.5;
 
-    let n = if plat_n < 0.0 {
+    let total = if plat_n < 0.0 {
         0
-    } else if (plat_n as usize) > MAX_PLATS {
+    } else if plat_n > MAX_PLATS as f64 {
         MAX_PLATS
     } else {
         plat_n as usize
     };
 
-    let plats = unsafe { core::slice::from_raw_parts(rk_plat_ptr(), n * STRIDE) };
-
+    let plats = rk_plat_ptr();
     let mut flags: f64 = 0.0;
     let mut bounced = false;
 
     // 1. Push out of anything the player walked into, with a step-up for small ledges.
-    for i in 0..n {
-        let p = &plats[i * STRIDE..i * STRIDE + STRIDE];
-        let (ox, oy, oz, sx, sz, th, kind, off) = (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+    let mut i = 0;
+    while i < total {
+        let p = unsafe { plats.add(i * STRIDE) };
+        let (ox, oy, oz, sx, sz, th, kind, off) = unsafe {
+            (*p, *p.add(1), *p.add(2), *p.add(3), *p.add(4), *p.add(5), *p.add(6), *p.add(7))
+        };
+        i += 1;
         if off != 0.0 {
             continue;
         }
         let thick = if th > 0.0 { th } else { 0.5 };
         let hx = sx / 2.0 + 0.35;
         let hz = sz / 2.0 + 0.35;
-        if y < oy - 0.12 && y + 2.6 > oy - thick && (x - ox).abs() < hx && (z - oz).abs() < hz {
+        if y < oy - 0.12 && y + 2.6 > oy - thick && fabs(x - ox) < hx && fabs(z - oz) < hz {
             if kind == T_LAVA {
                 flags += 1.0;
                 continue;
@@ -119,8 +149,8 @@ pub extern "C" fn rk_step(
                 flags += 4.0;
                 continue;
             }
-            let dx = hx - (x - ox).abs();
-            let dz = hz - (z - oz).abs();
+            let dx = hx - fabs(x - ox);
+            let dz = hz - fabs(z - oz);
             if dx < dz {
                 x = ox + sign_or(x - ox, 1.0) * hx;
                 vx = 0.0;
@@ -133,24 +163,29 @@ pub extern "C" fn rk_step(
 
     // 2. Gravity and landing.
     let before = y;
-    vy = (-55.0f64).max(vy - gravity * dt);
+    vy = fmax(-55.0, vy - gravity * dt);
     y += vy * dt;
     let mut on = 0.0;
     let mut ride: f64 = -1.0;
 
-    for i in 0..n {
-        let p = &plats[i * STRIDE..i * STRIDE + STRIDE];
-        let (ox, oy, oz, sx, sz, _th, kind, off) = (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+    let mut j = 0;
+    while j < total {
+        let p = unsafe { plats.add(j * STRIDE) };
+        let (ox, oy, oz, sx, sz, kind, off) = unsafe {
+            (*p, *p.add(1), *p.add(2), *p.add(3), *p.add(4), *p.add(6), *p.add(7))
+        };
+        let idx = j;
+        j += 1;
         if off != 0.0 || vy > 0.0 || before < oy - 0.1 || y > oy {
             continue;
         }
-        if (x - ox).abs() > sx / 2.0 + 0.3 || (z - oz).abs() > sz / 2.0 + 0.3 {
+        if fabs(x - ox) > sx / 2.0 + 0.3 || fabs(z - oz) > sz / 2.0 + 0.3 {
             continue;
         }
         y = oy;
         vy = 0.0;
         on = 1.0;
-        ride = i as f64;
+        ride = idx as f64;
         if kind == T_LAVA {
             on = 0.0;
             flags += 8.0;
@@ -177,7 +212,7 @@ pub extern "C" fn rk_step(
     let mut jbuf = if want_jump > 0.5 && was_jump <= 0.5 {
         0.12
     } else {
-        (jbuf0 - dt).max(0.0)
+        fmax(0.0, jbuf0 - dt)
     };
     if (want_jump > 0.5 || jbuf > 0.0) && !jumping && (ong || coy < 0.1) && vy <= 0.5 {
         vy = jump_power;
@@ -194,21 +229,23 @@ pub extern "C" fn rk_step(
         flags += 2.0;
     }
 
-    let out = unsafe { core::slice::from_raw_parts_mut(rk_out_ptr(), 16) };
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    out[3] = vx;
-    out[4] = vz;
-    out[5] = vy;
-    out[6] = on;
-    out[7] = ride;
-    out[8] = flags;
-    out[9] = jbuf;
-    out[10] = if jumping { 1.0 } else { 0.0 };
-    out[11] = coy;
-    out[12] = want_jump;
-    out[13] = 0.0;
-    out[14] = 0.0;
-    out[15] = 0.0;
+    let out = rk_out_ptr();
+    unsafe {
+        *out = x;
+        *out.add(1) = y;
+        *out.add(2) = z;
+        *out.add(3) = vx;
+        *out.add(4) = vz;
+        *out.add(5) = vy;
+        *out.add(6) = on;
+        *out.add(7) = ride;
+        *out.add(8) = flags;
+        *out.add(9) = jbuf;
+        *out.add(10) = if jumping { 1.0 } else { 0.0 };
+        *out.add(11) = coy;
+        *out.add(12) = want_jump;
+        *out.add(13) = 0.0;
+        *out.add(14) = 0.0;
+        *out.add(15) = 0.0;
+    }
 }
