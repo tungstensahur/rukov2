@@ -1,1 +1,15 @@
-{"name":"ruko","version":"1.0.0","private":true,"scripts":{"start":"node boot.js"},"engines":{"node":">=18"}}
+{
+  "name": "ruko",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node boot.js",
+    "build:web": "tsc -p web/tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
