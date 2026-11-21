@@ -302,7 +302,8 @@
     const b=document.createElement('button');
     b.dataset.t='pants';
     b.textContent='Pants';
-    bar.appendChild(b);
+    // sit next to Shirts rather than at the end of the row
+    bar.insertBefore(b,sh&&sh.nextSibling||null);
    }
    wireTabs();
   }
@@ -310,43 +311,66 @@
 
  /* ---------- the Avatar page ---------- */
  const row=(label,list,curId,attr,tip)=>`<label>${label}</label><div class="chips"><button ${attr}="" class="${!curId?'on':''}">None</button>${list.map(h=>`<button ${attr}="${h.id}" class="${curId==h.id?'on':''}">${esc(h.name)}</button>`).join('')}</div>${list.length?'':`<p class="mut" style="font-size:12px;margin:0">${tip}</p>`}`;
+ /* the avatar page is rebuilt every time one of its own tabs is clicked, so this runs again after
+    any change to the page rather than only once. It is idempotent: it only acts while the clothes
+    card still has the old t-shirt row or is missing the shirt and pants rows. */
+ const teeRow=()=>{
+  const me=cur();
+  if(!me)return null;
+  const isTee=l=>/^t-shirt graphic$/i.test(l.textContent.trim());
+  const card=[...app.querySelectorAll('.card')].find(c=>c.querySelector('[data-shirt]')||c.querySelector('[data-tee]')
+   ||[...c.querySelectorAll('label')].some(isTee));
+  return card?{me,card}:null;
+ };
+ const decorateClothes=()=>{
+  const hit=teeRow();
+  if(!hit)return;
+  const{me,card}=hit;
+  // the t-shirt graphic row from the base page is removed: shirts and pants are the clothing now
+  const tl=[...card.querySelectorAll('label')].find(l=>/^t-shirt graphic$/i.test(l.textContent.trim()));
+  if(tl){
+   const nx=tl.nextElementSibling;
+   if(nx&&nx.classList.contains('chips'))nx.remove();
+   tl.remove();
+  }
+  if(card.querySelector('[data-shirt]'))return;
+  const av=me.av||{};
+  const owned=me.owned.map(i=>hats().find(h=>h.id==i)).filter(Boolean);
+  const shirts=owned.filter(h=>h.kind=='shirt'),ps=owned.filter(h=>h.kind=='pants');
+  const box=document.createElement('div');
+  box.innerHTML=row('Shirt',shirts,av.shirtTex,'data-shirt','Make one in Creator Studio → Shirts.')
+   +row('Pants',ps,av.pantsTex,'data-pants','Make a pair in Creator Studio → Pants.');
+  card.appendChild(box);
+  box.querySelectorAll('[data-shirt]').forEach(b=>b.onclick=()=>{
+   const m=cur(),nv={...(m.av||{})};
+   if(b.dataset.shirt)nv.shirtTex=b.dataset.shirt;else delete nv.shirtTex;
+   m.av=nv;saveUser(m);avatar();
+  });
+  box.querySelectorAll('[data-pants]').forEach(b=>b.onclick=()=>{
+   const m=cur(),nv={...(m.av||{})};
+   if(b.dataset.pants)nv.pantsTex=b.dataset.pants;else delete nv.pantsTex;
+   m.av=nv;saveUser(m);avatar();
+  });
+ };
  const ba=avatar;
  avatar=function(){
   const r=ba.apply(this,arguments);
-  try{
-   const me=cur();
-   if(!me)return r;
-   const card=[...app.querySelectorAll('.card')].find(c=>c.querySelector('[data-tee]')||c.querySelector('[data-shirt]'));
-   if(!card)return r;
-   // the t-shirt graphic row from the base page is removed: shirts and pants are the clothing now
-   const tl=[...card.querySelectorAll('label')].find(l=>/^t-shirt graphic$/i.test(l.textContent.trim()));
-   if(tl){
-    const nx=tl.nextElementSibling;
-    if(nx&&nx.classList.contains('chips'))nx.remove();
-    tl.remove();
-   }
-   if(!card.querySelector('[data-shirt]')){
-    const av=me.av||{};
-    const owned=me.owned.map(i=>hats().find(h=>h.id==i)).filter(Boolean);
-    const shirts=owned.filter(h=>h.kind=='shirt'),ps=owned.filter(h=>h.kind=='pants');
-    const box=document.createElement('div');
-    box.innerHTML=row('Shirt',shirts,av.shirtTex,'data-shirt','Make one in Creator Studio → Shirts.')
-     +row('Pants',ps,av.pantsTex,'data-pants','Make a pair in Creator Studio → Pants.');
-    card.appendChild(box);
-    box.querySelectorAll('[data-shirt]').forEach(b=>b.onclick=()=>{
-     const m=cur(),nv={...(m.av||{})};
-     if(b.dataset.shirt)nv.shirtTex=b.dataset.shirt;else delete nv.shirtTex;
-     m.av=nv;saveUser(m);avatar();
-    });
-    box.querySelectorAll('[data-pants]').forEach(b=>b.onclick=()=>{
-     const m=cur(),nv={...(m.av||{})};
-     if(b.dataset.pants)nv.pantsTex=b.dataset.pants;else delete nv.pantsTex;
-     m.av=nv;saveUser(m);avatar();
-    });
-   }
-  }catch(e){}
+  try{decorateClothes()}catch(e){}
   return r;
  };
+ try{
+  if(!window.RKAVWATCH){
+   window.RKAVWATCH=1;
+   let busy=null;
+   new MutationObserver(()=>{
+    if(busy)return;
+    busy=setTimeout(()=>{
+     busy=null;
+     try{if(document.documentElement.dataset.page=='avatar')decorateClothes()}catch(e){}
+    },40);
+   }).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
+  }
+ }catch(e){}
 
  /* ---------- the item page ---------- */
  const bh=hatPage;
@@ -388,10 +412,16 @@
 
  window.RKCLOTH={editor,kind:k=>editor(cur(),k)};
 
- /* this is the last file the page loads, so it also starts the mobile game controls. They live in
-    their own file because they have nothing to do with clothing, but the page only carries the
-    overlays boot.js knows about, so one of them has to fetch it. */
+ /* this is the last file the page loads, so it also starts the files that come after it: the look
+    of the site and the mobile game controls. They live apart because they have nothing to do with
+    clothing, but the page only carries the overlays boot.js knows about, so one of them has to
+    fetch them. */
  try{
+  if(!document.getElementById('rk-theme')){
+   const t=document.createElement('script');
+   t.src='js/41-theme.js?v='+Date.now();
+   document.body.appendChild(t);
+  }
   if(!window.RKTOUCH){
    const s=document.createElement('script');
    s.src='js/40-game-touch.js?v='+Date.now();
