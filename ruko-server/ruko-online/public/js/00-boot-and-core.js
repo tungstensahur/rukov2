@@ -1,3 +1,35 @@
+function animP(g,dt,t,hs,sp,gr,vy,atk){const Lb=g.userData.l;if(!Lb)return 0;
+ const ex=Lb.ll.rotation,ey=Lb.rl.rotation,ez=Lb.la.rotation,ew=Lb.ra.rotation,sh=Math.min(1,hs/Math.max(1,sp)),kq=1-Math.exp(-14*dt),br=Math.sin(t*.0019),u=g.userData;
+ // Landing has weight now: hitting the floor fast squashes the body for a moment.
+ if(gr&&!u.wasG&&vy<-4)u.land=1;
+ u.wasG=gr;u.land=Math.max(0,(u.land||0)-dt*3.4);
+ u.gt=(u.gt||0)+dt*(1.1+hs*2.5);
+ const gt=u.gt;let tll=0,trl=0,tla=0,tra=0,tlt=0,bob=0,roll=0;
+ if(!gr){
+  // In the air: tuck on the way up, reach down on the way down.
+  const up=vy>1;
+  tll=up?-.5:.34;trl=up?.4:-.52;
+  tla=up?-2.05:-1.2;tra=up?-2.25:-1.15;
+  tlt=up?.14:-.08;bob=up?.02:0;
+ }else if(sh>.12){
+  // Running: legs and arms counter-swing, the body bobs and rolls with the stride.
+  const sg=Math.sin(gt),cg=Math.cos(gt);
+  tll=sg*.95*sh;trl=-sg*.95*sh;
+  tla=-sg*1.15*sh-.08;tra=sg*1.15*sh-.08;
+  tlt=.15*sh;bob=Math.abs(cg)*.115*sh*(1+sh*.35);roll=-sg*.045*sh;
+ }else{
+  tll=br*.03;trl=-br*.03;tla=-.12+br*.06;tra=-.12-br*.06;tlt=br*.012;bob=br*.018;
+ }
+ const fq=atk!=null&&t-atk<220;if(fq){tra=-1.5;tlt*=.4}
+ ex.x+=(tll-ex.x)*kq;ey.x+=(trl-ey.x)*kq;ez.x+=(tla-ez.x)*kq;ew.x+=(tra-ew.x)*kq;
+ if(fq)ew.x=-1.5;
+ // Squash on landing, a breath while standing still, and a lean into the run.
+ const idle=gr&&sh<=.12;
+ const sy=1-u.land*.17+(idle?Math.sin(t*.0022)*.006:0),sxz=1+u.land*.12;
+ if(g.scale&&g.scale.set){if(!u.bs)u.bs=g.scale.clone();g.scale.set(u.bs.x*sxz,u.bs.y*sy,u.bs.z*sxz)}
+ g.rotation.z+=(roll-g.rotation.z)*kq;
+ g.rotation.order='YXZ';g.rotation.x+=(tlt-g.rotation.x)*kq;
+ return bob-u.land*.07}
 
 const $=s=>document.querySelector(s),app=$('#app');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -194,12 +226,11 @@ const loop=t=>{raf=requestAnimationFrame(loop);const dt=Math.min(.05,(t-t0)/1000
   p.x+=vhx*dt;p.z+=vhz*dt;const hs=Math.hypot(vhx,vhz);
   if(hs>.4&&t-atk>250){const ta=Math.atan2(vhx,vhz);let dd=ta-pm.rotation.y;dd=Math.atan2(Math.sin(dd),Math.cos(dd));pm.rotation.y+=dd*Math.min(1,16*dt)}
   pl.forEach(q=>{if(q.t=='crumble'&&q.cr){const a=t-q.cr;if(a>900&&!q.off){q.off=1;q.mesh.visible=false}if(a>3500){q.off=0;q.cr=0;q.mesh.visible=true}}if(q.mv){const o=Math.sin(t*.001*q.mv.s)*q.mv.d,a=q.mv.a,nx=q.bx+(a=='x'?o:0),ny=q.by+(a=='y'?o:0),nz=q.bz+(a=='z'?o:0),dx=nx-q.x,dy=ny-q.y,dz=nz-q.z;q.x=nx;q.y=ny;q.z=nz;q.mesh.position.set(nx,ny-q.th/2,nz);if(q===ride){p.x+=dx;p.y+=dy;p.z+=dz}}});ride=null;
-  pl.forEach(q=>{if(q.off)return;const th=q.th||.5,hx=q.sx/2+.35,hz=q.sz/2+.35;if(p.y<q.y-.12&&p.y+2.6>q.y-th&&Math.abs(p.x-q.x)<hx&&Math.abs(p.z-q.z)<hz){if(q.t=='lava'){rsp();return}if(gr&&q.y-p.y<=.55){p.y=q.y;p.vy=0;return}const ox=hx-Math.abs(p.x-q.x),oz=hz-Math.abs(p.z-q.z);if(ox<oz){p.x=q.x+Math.sign(p.x-q.x||1)*hx;vhx=0}else{p.z=q.z+Math.sign(p.z-q.z||1)*hz;vhz=0}}});
-  const py=p.y;p.vy=Math.max(-55,p.vy-(g.grav||22)*dt);p.y+=p.vy*dt;let on=0;
-  pl.forEach((q,i)=>{if(!q.off&&p.vy<=0&&py>=q.y-.1&&p.y<=q.y&&Math.abs(p.x-q.x)<=q.sx/2+.3&&Math.abs(p.z-q.z)<=q.sz/2+.3){p.y=q.y;p.vy=0;on=1;ride=q;if(q.t=='crumble'&&!q.cr)q.cr=t;if(g.cps&&i&&i%5==0){sp0.x=q.x;sp0.y=q.y;sp0.z=q.z}if(q.t=='lava'){rsp();msg('Ouch!');on=0;return}if(q.t=='bounce'){p.vy=17;on=0;jumping=true}if(q.t=='check'){sp0.x=q.x;sp0.y=q.y;sp0.z=q.z}if((i==last||q.t=='goal')&&!done){done=1;got+=100;msg('You won!')}}});
-  gr=!!on;if(on){jumping=false;coy=0}else coy+=dt;
-  jbuf=(jp&&!jprev)?.12:Math.max(0,jbuf-dt);jprev=jp;
-  if((jp||jbuf>0)&&!jumping&&(on||coy<.1)&&p.vy<=.5){p.vy=g.jmp||9;jumping=true;jbuf=0;on=0;gr=false;coy=9}else if(jumping&&!jp&&p.vy>3.5)p.vy=3.5;
+    const RS=RKG.step(p,vhx,vhz,dt,g,gr,jumping,jbuf,coy,jp,jprev,pl);
+  p.x=RS.x;p.y=RS.y;p.z=RS.z;vhx=RS.vx;vhz=RS.vz;p.vy=RS.vy;
+  gr=!!RS.on;jbuf=RS.jbuf;jumping=!!RS.jumping;coy=RS.coy;jprev=jp;ride=RS.ride>=0?pl[RS.ride]:null;
+  if(RS.flags&1)rsp();if(RS.flags&8){rsp();msg('Ouch!')}
+  if(ride){if(ride.t=='crumble'&&!ride.cr)ride.cr=t;if(g.cps&&RS.ride&&RS.ride%5==0){sp0.x=ride.x;sp0.y=ride.y;sp0.z=ride.z}if(ride.t=='check'){sp0.x=ride.x;sp0.y=ride.y;sp0.z=ride.z}if((RS.ride==last||ride.t=='goal')&&!done){done=1;got+=100;msg('You won!')}}
   if(p.y<(g.killY||-15))rsp();
   coins.forEach(c=>{if(!c.visible)return;c.rotation.z+=dt*3;if(Math.hypot(c.position.x-p.x,c.position.y-p.y-1.3,c.position.z-p.z)<1.8){c.visible=false;got+=5}});
   $('#gh').textContent='⏱ '+((t-ts)/1000|0)+'s   Coins: '+got;if(scUses)$('#svd').textContent='Score: '+SV.score;
