@@ -105,6 +105,10 @@ const UID_NEW="test(String(v==null?'':v))?String(v==null?'':v):''";
 // Site chat, in-game chat and direct messages each build their text the same way. The filter runs
 // straight after that, so a blocked message is never stored and never sent to anyone else.
 const FILTER_HOOK="if(require('./chatfilter.js').blocked(text))return send(res,200,{ok:1,filtered:1});";
+// A username is the name every other player sees, so it goes through the same filter as chat: no
+// swearing, no rude words hidden inside a longer name, no letter-by-letter spelling around them.
+const NAME_MARK="if(!/^\\w{3,16}$/.test(name))return send(res,400,{error:'Username: 3-16 letters, numbers or underscores.'});";
+const NAME_HOOK="if(require('./chatfilter.js').nameBlocked(name))return send(res,400,{error:'Please pick a username without swearing or rude words.'});";
 const CHAT_MARKS=[
  "const text=String(b.text||'').trim().slice(0,200);if(!text)return send(res,400,{error:'Empty message.'});",
  "const text=String(b.text||'').trim().slice(0,160);if(!text)return send(res,400,{error:'Empty message.'});",
@@ -211,6 +215,7 @@ const SERVER_MARKS=[
  // A worn shirt or pair of pants has to be one the player actually owns.
  ["if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;",
   "if(a&&a.tee&&!me.owned.includes(a.tee))delete a.tee;if(a&&a.shirtTex&&!me.owned.includes(a.shirtTex))delete a.shirtTex;if(a&&a.pantsTex&&!me.owned.includes(a.pantsTex))delete a.pantsTex;",'replace'],
+ [NAME_MARK,NAME_HOOK,'after'],
  ...CHAT_MARKS.map(mark=>[mark,FILTER_HOOK,'after'])
 ];
 
