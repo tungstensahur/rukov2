@@ -50,4 +50,16 @@ function blocked(text){
  }
  return false;
 }
-module.exports={blocked};
+// Usernames are one glued-together word, so the whole-word check above is not enough: "bigfuckhead"
+// and "f_u_c_k" have to be caught as well. A short list of harmless words that merely contain one
+// is taken out first, so a name like Grape, Peacock or Sussex is not refused.
+const SAFE=/grape|drape|scrape|therapist|sexton|sussex|analy|canal|analog|banal|cucumber|cumul|circum|document|peacock|cockpit|cockatoo|hancock|gamecock|dickson|dickens|spice|conspic|assassin|class|grass|passage|massive|bastion|scunthorpe|penistone/g;
+function nameBlocked(name){
+ // every digit and separator is already folded away by norm(), so "f_u_c_k" reads as "fuck"
+ const s=norm(name).replace(/[^a-z]+/g,'');
+ if(!s)return false;
+ const plain=s.replace(SAFE,'');
+ for(const w of [plain,loose(plain)])for(const bad of BAD)if(w.indexOf(bad)>=0)return true;
+ return false;
+}
+module.exports={blocked,nameBlocked};
