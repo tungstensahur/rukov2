@@ -7,19 +7,35 @@ const RG={x:[-200,200],y:[-20,200],z:[-200,200],sx:[.5,200],sz:[.5,200],th:[.25,
 let STU=null;
 const cenOf=o=>[o.x,o.k=='c'?o.y:RKC.centerY(o.k,o.y,o.th||.5,o.sy||0),o.z];
 function gameEd(me){
- const D0={name:'My Game',desc:'A game I made.',genre:'Obby',sky:'#8fd3ff',light:1,fog:true,killY:-15,spd:7,jmp:9,grav:22,objs:TPL.blank(),sel:-1,tool:'move',tab:'props',snap:.5,thumb:null,editId:null,keepThumb:false,pvp:false,hp:100,resp:3,weapons:[],startW:[],wsel:0,scripts:[],sounds:[],stats:['coins']};
+ const bp=()=>[{k:'s',x:0,y:0,z:0,u:nuid()},{k:'p',t:'solid',nm:'Baseplate',bp:1,x:0,y:-.02,z:0,sx:80,sz:80,th:1,c:'#a0a4ad',u:nuid()}];
+ const D0={name:'My Game',desc:'A game I made.',genre:'Obby',sky:'#8fd3ff',light:1,fog:true,killY:-15,spd:7,jmp:9,grav:22,objs:bp(),sel:-1,tool:'move',tab:'props',snap:.5,thumb:null,editId:null,keepThumb:false,pvp:false,hp:100,resp:3,weapons:[],startW:[],wsel:0,scripts:[],sounds:[],stats:['coins']};
  GE=Object.assign({},D0,GE||ls.get('ruko_draft',null)||{});GE.hist=[];GE.redo=[];if(!Array.isArray(GE.startW))GE.startW=GE.startW>=0?[GE.startW]:[];GE.scripts=GE.scripts||[];GE.objs.forEach(o=>{if(!o.u)o.u=nuid()});
  if(!['select','move','scale'].includes(GE.tool))GE.tool='move';if(GE.sel>=GE.objs.length)GE.sel=-1;
  if(STU){try{STU.r.dispose()}catch(e){}STU=null}
  const E=$('#ed'),O=()=>GE.objs,fm=v=>+(+v).toFixed(2),cl=(v,a,b)=>Math.max(a,Math.min(b,v)),snv=()=>+GE.snap||0,sn=v=>fm(RKC.snap(v,snv()));
  const icon=o=>o.k=='p'?(TYPEINFO[o.t]||TYPEINFO.solid)[0]:o.k=='c'?'🪙':o.k=='s'?'🚩':o.k=='w'?'🔫':o.k=='u'?'🖥':o.k=='x'?'✨':o.k=='n'?'🔊':'▢';
- const label=(o,i)=>(o.nm||(o.k=='p'?(TYPEINFO[o.t]||TYPEINFO.solid)[1]:o.k=='c'?'Coin':o.k=='s'?'Spawn':o.k=='w'?((GE.weapons[o.wi]||{}).n||'Weapon'):o.k=='u'?({label:'Label',bar:'Bar',panel:'Panel',button:'Button'}[o.ty]||'UI'):o.k=='x'?({spark:'Sparks',confetti:'Confetti',smoke:'Smoke',glow:'Glow'}[o.fx]||'Effect'):o.k=='n'?'Speaker':'Decoration'))+' '+i;
+ const label=(o,i)=>(o.nm||(o.k=='p'?(TYPEINFO[o.t]||TYPEINFO.solid)[1]:o.k=='c'?'Coin':o.k=='s'?'Spawn':o.k=='w'?((GE.weapons[o.wi]||{}).n||'Weapon'):o.k=='u'?({label:'Label',bar:'Bar',panel:'Panel',button:'Button'}[o.ty]||'UI'):o.k=='x'?({spark:'Sparks',confetti:'Confetti',smoke:'Smoke',glow:'Glow'}[o.fx]||'Effect'):o.k=='n'?'Speaker':'Decoration'))+(o.nm?'':' '+i);
+ /* v51: screen UI is drawn over the viewport, the way it appears while the game is played */
+ let uidrag=0;
+ const uiRender=()=>{const L=$('#uivp');if(!L)return;const list=[];O().forEach((o,i)=>{if(o.k=='u')list.push([o,i])});
+  L.innerHTML=list.map(([o,i])=>{const ty=o.ty||'label',sd=i==GE.sel?' sel':'';let st=`left:${cl(o.x,0,100)}%;top:${cl(o.y,0,100)}%;`,in2='';
+   if(ty=='panel'){st+=`width:${cl(o.sx,1,100)}%;height:${cl(o.sy,1,100)}%;background:${o.c||'#0b0e18'}`}
+   else if(ty=='bar'){st+=`width:${cl(o.sx,1,100)}%;height:${Math.max(6,Math.min(30,+o.sy||12))}px`;in2='<i style="width:55%"></i><span>'+(o.st||'coins')+'</span>'}
+   else if(ty=='button'){st+=`width:${cl(o.sx,1,100)}%;height:${Math.max(28,Math.min(64,+o.sy||36))}px`;in2=esc(o.tx||'Players')}
+   else{st+=`color:${o.c||'#fff'};font-size:${Math.max(9,Math.min(48,+o.s||16))}px`;in2=esc(o.tx||'Text')}
+   return `<div class="rk-u rk-u-${ty}${sd}" data-u="${i}" style="${st}">${in2}</div>`}).join('');
+  L.style.display=list.length?'block':'none';
+  L.querySelectorAll('[data-u]').forEach(d=>{const i=+d.dataset.u;
+   d.onpointerdown=e=>{e.stopPropagation();e.preventDefault();uidrag=1;select(i);const o=O()[i],r=vp.getBoundingClientRect(),x0=e.clientX,y0=e.clientY,ox=+o.x||0,oy=+o.y||0;
+    const mv=ev=>{o.x=+cl(ox+(ev.clientX-x0)/r.width*100,0,100).toFixed(1);o.y=+cl(oy+(ev.clientY-y0)/r.height*100,0,100).toFixed(1);d.style.left=o.x+'%';d.style.top=o.y+'%';persist()};
+    const up=()=>{uidrag=0;removeEventListener('pointermove',mv);removeEventListener('pointerup',up);propsRender();redraw()};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up)}})};
  const toolbox=()=>INS.map(([g,L])=>`<div class="stg">${g}</div><div class="stgrid">${L.map(([k,t,ic,n])=>`<button data-ins="${k}:${t}" ${k=='w'?'data-tl="weapon"':''}><span>${ic}</span>${n}</button>`).join('')}</div>`).join('');
  E.innerHTML=`<div class="stu" id="stu"><div class="stu-top"><b>◆ Ruko Studio</b><span class="mut" id="stn"></span><span class="sp"></span><button id="tst">▶ Test</button><button class="pri" id="pub">${GE.editId?'Update':'Publish'}</button></div>
- <div class="stu-bar sc">${[['select','⬚ Select'],['move','✥ Move'],['scale','⤢ Scale']].map(([k,n])=>`<button data-tool="${k}">${n}</button>`).join('')}<span class="sep"></span><button id="un">↶</button><button id="re">↷</button><span class="sep"></span><select id="snp">${SNAPS.map(([v,n])=>`<option value="${v}">Snap ${n}</option>`).join('')}</select><span class="sep"></span><button id="du">⧉ Duplicate</button><button id="dl">🗑 Delete</button><button id="fc">⌖ Focus</button></div>
- <div class="stu-main"><div class="stu-tb" id="tb1">${toolbox()}</div><div class="stu-vp" id="vp"><canvas id="cv"></canvas><div class="stu-hint">Drag to look · right-drag or two fingers to pan · scroll or pinch to zoom · tap an object to select</div></div>
+ <div class="stu-ribbon sc"><div class="stu-grp"><div class="stu-gb">${[['select','⬚ Select'],['move','✥ Move'],['scale','⤢ Scale']].map(([k,n])=>`<button data-tool="${k}">${n}</button>`).join('')}</div><span>Tools</span></div><div class="stu-grp"><div class="stu-gb"><button id="un">↶ Undo</button><button id="re">↷ Redo</button></div><span>History</span></div><div class="stu-grp"><div class="stu-gb"><button id="du">⧉ Duplicate</button><button id="dl">🗑 Delete</button><button id="fc">⌖ Focus</button></div><span>Model</span></div><div class="stu-grp"><div class="stu-gb"><select id="snp">${SNAPS.map(([v,n])=>`<option value="${v}">Snap ${n}</option>`).join('')}</select></div><span>Grid</span></div><div class="stu-grp"><div class="stu-gb"><button data-tab="tools">🧰 Toolbox</button><button data-tab="ex">🗂️ Explorer</button><button data-tab="props">⚙️ Properties</button><button data-tab="code">📜 Scripts</button><button data-tab="game">🎮 Game</button></div><span>View</span></div></div>
+ <div class="stu-main"><div class="stu-tb" id="tb1"><div class="stu-h">Toolbox</div>${toolbox()}</div><div class="stu-vp" id="vp"><canvas id="cv"></canvas><div class="stu-ui" id="uivp"></div><div class="stu-bp">🗂️ Baseplate</div><div class="stu-hint">Drag to look · right-drag or two fingers to pan · scroll or pinch to zoom · tap an object to select</div></div>
  <div class="stu-side"><div class="stu-tabs"><button data-tab="tools" class="mo">Toolbox</button><button data-tab="props">Properties</button><button data-tab="ex">Explorer</button><button data-tab="code">Code</button><button data-tab="game">Game</button></div>
-  <div class="stu-pn" data-p="tools" id="tb2">${toolbox()}</div><div class="stu-pn" data-p="props" id="pp"></div><div class="stu-pn" data-p="ex" id="exl"></div><div class="stu-pn" data-p="code" id="cd"></div>
+  <div class="stu-pn on" data-p="ex"><div class="stu-h">Explorer</div><div id="exl"></div></div><div class="stu-pn on" data-p="props"><div class="stu-h">Properties</div><div id="pp"></div></div><div class="stu-pn" data-p="tools" id="tb2">${toolbox()}</div><div class="stu-pn" data-p="code"><div class="stu-h">Scripts</div><div id="cd"></div></div>
   <div class="stu-pn" data-p="game"><label>Name</label><input id="gn" maxlength="24" value="${esc(GE.name)}"><label>Description</label><input id="gd" maxlength="80" value="${esc(GE.desc)}"><label>Genre</label><select id="gg">${GEN.map(x=>`<option ${x==GE.genre?'selected':''}>${x}</option>`).join('')}</select><label>Sky color</label><input id="gs" type="color" value="${GE.sky}"><label>Brightness</label><input id="gl" type="range" min=".3" max="1.6" step=".05" value="${GE.light}"><label><input id="gf" type="checkbox" ${GE.fog?'checked':''}> Distance fog</label><label>Void height (falling below respawns you)</label><input id="gk" type="number" value="${GE.killY}"><label>Walk speed (4-14)</label><input id="sp" type="number" value="${GE.spd}"><label>Jump power (6-16)</label><input id="jp" type="number" value="${GE.jmp}"><label>Gravity (10-40)</label><input id="gr" type="number" value="${GE.grav}">
    <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:8px"><b>Game thumbnail</b><img id="tm" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;margin-top:8px;display:none"><div class="chips"><button id="tu">Upload image</button><button id="tp3">Use a screenshot</button><button id="tx">Remove</button></div><input id="tf" type="file" accept="image/*" style="display:none"></div>
    <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:8px"><b>Sounds in this game</b><div class="mut" style="font-size:12px;margin:4px 0">Saved with the game, so they play on any device and after a restart.</div><div id="slist"></div><div class="chips"><button id="su">＋ Upload sound</button></div><input id="sf" type="file" accept="audio/*" style="display:none"></div>
@@ -37,7 +53,7 @@ function gameEd(me){
   else if(o.k=='c'){m=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.1,16),new THREE.MeshLambertMaterial({color:'#ffc800'}));m.rotation.x=1.5708;g.add(m)}
   else if(o.k=='s'){m=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.12,20),new THREE.MeshLambertMaterial({color:'#39d353'}));m.position.y=-.24;g.add(m);const c2=new THREE.Mesh(new THREE.ConeGeometry(.3,.9,12),new THREE.MeshLambertMaterial({color:'#39d353'}));c2.position.y=.15;g.add(c2)}
   else if(o.k=='w'){const wm=weaponMesh(GE.weapons[o.wi]||{});wm.position.z=-.5;wm.scale.setScalar(1.1);g.add(wm)}
-  else if(o.k=='u'){m=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1),new THREE.MeshBasicMaterial({color:o.c||'#7c6cff',transparent:true,opacity:.5,side:THREE.DoubleSide}));g.add(m);const ed2=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.4}));ed2.raycast=()=>{};g.add(ed2)}
+  else if(o.k=='u'){}
   else if(o.k=='x'){const col=o.c||({spark:'#ffd23f',confetti:'#ff6fb5',smoke:'#c7cbd6',glow:'#5bd6ff'}[o.fx]||'#ffd23f');m=new THREE.Mesh(new THREE.TorusGeometry(.55,.13,8,18),new THREE.MeshBasicMaterial({color:col}));g.add(m)}
   else if(o.k=='n'){m=new THREE.Mesh(new THREE.ConeGeometry(.45,.9,12),new THREE.MeshLambertMaterial({color:'#ffd23f'}));m.position.y=.45;g.add(m);const bg=new THREE.Mesh(new THREE.CircleGeometry(Math.max(.6,+o.r||6),20),new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:.1}));bg.rotation.x=-1.5708;bg.position.y=-.05;bg.raycast=()=>{};g.add(bg)}
   const c=cenOf(o);g.position.set(c[0],c[1],c[2]);return g};
@@ -45,8 +61,8 @@ function gameEd(me){
   sh.position.y=.5;tip.position.y=1.06;hit.position.y=.75;[sh,tip,hit].forEach(q=>{q.renderOrder=20;q.userData.axis=k;h.add(q)});if(k=='x')h.rotation.z=-Math.PI/2;else if(k=='z')h.rotation.x=Math.PI/2;g.add(h)}return g};
  const camSet=()=>{const cp=Math.cos(V.pitch);cam.position.set(V.t[0]+Math.sin(V.yaw)*cp*V.dist,V.t[1]+Math.sin(V.pitch)*V.dist,V.t[2]+Math.cos(V.yaw)*cp*V.dist);cam.lookAt(V.t[0],V.t[1],V.t[2])};
  const placeGizmo=()=>{const o=O()[GE.sel];if(!gz||!o)return;const c=cenOf(o);gz.position.set(c[0],c[1],c[2]);gz.scale.setScalar(Math.max(.4,cam.position.distanceTo(gz.position)*.14));if(bh)bh.update()};
- let rq=0;const redraw=()=>{if(rq)return;rq=1;requestAnimationFrame(()=>{rq=0;if(!vp.isConnected)return;sc.background=new THREE.Color(GE.sky);hl.intensity=.9*GE.light;camSet();placeGizmo();R3.render(sc,cam)})};
- const selVis=()=>{if(bh){sc.remove(bh);bh=null}if(gz){sc.remove(gz);gz=null}const o=O()[GE.sel];if(!o||!roots[GE.sel])return;bh=new THREE.BoxHelper(roots[GE.sel],0x2f80ed);sc.add(bh);if(GE.tool!='select'){gz=buildGizmo(GE.tool=='scale'&&(o.k=='p'||o.k=='d')?'scale':'move');sc.add(gz)}placeGizmo()};
+ let rq=0;const redraw=()=>{if(rq)return;rq=1;requestAnimationFrame(()=>{rq=0;if(!vp.isConnected)return;if(!uidrag)uiRender();sc.background=new THREE.Color(GE.sky);hl.intensity=.9*GE.light;camSet();placeGizmo();R3.render(sc,cam)})};
+ const selVis=()=>{if(bh){sc.remove(bh);bh=null}if(gz){sc.remove(gz);gz=null}const o=O()[GE.sel];if(!o||!roots[GE.sel]||o.k=='u')return;bh=new THREE.BoxHelper(roots[GE.sel],0x2f80ed);sc.add(bh);if(GE.tool!='select'){gz=buildGizmo(GE.tool=='scale'&&(o.k=='p'||o.k=='d')?'scale':'move');sc.add(gz)}placeGizmo()};
  const rebuild=()=>{while(world.children.length)kill(world.children.pop());roots=O().map((o,i)=>{const r=mkRoot(o,i);world.add(r);return r});selVis()};
  const updObj=i=>{world.remove(roots[i]);kill(roots[i]);roots[i]=mkRoot(O()[i],i);world.add(roots[i]);selVis()};
  const rs=()=>{const w=vp.clientWidth||320,h=vp.clientHeight||320;R3.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();redraw()};
@@ -55,11 +71,27 @@ function gameEd(me){
  let pt0=0;const persist=()=>{clearTimeout(pt0);pt0=setTimeout(()=>ls.set('ruko_draft',{...GE,hist:[],redo:[],sel:-1}),400)};
  const snapH=()=>{GE.hist.push(JSON.stringify(O()));if(GE.hist.length>80)GE.hist.shift();GE.redo=[]};
  const gat=(x,z)=>Math.max(0,RKC.groundAt(x,z,O().filter(o=>o.k=='p')));
- const fit=()=>{let a=1e9,b=-1e9,c=1e9,d=-1e9,hy=0;O().forEach(o=>{const hx=(o.sx||1)/2,hz=(o.sz||1)/2;a=Math.min(a,o.x-hx);b=Math.max(b,o.x+hx);c=Math.min(c,o.z-hz);d=Math.max(d,o.z+hz);hy=Math.max(hy,o.y)});if(a>b){a=b=c=d=0}V.t=[(a+b)/2,hy/2,(c+d)/2];V.dist=Math.max(18,Math.max(b-a,d-c,hy)*1.15);redraw()};
+ const fit=()=>{const list=O().filter(o=>o.k!='u'&&!o.bp),use=list.length?list:O().filter(o=>o.k!='u');if(!use.length)use.push({x:0,y:0,z:0,sx:8,sz:8});let a=1e9,b=-1e9,c=1e9,d=-1e9,hy=0;use.forEach(o=>{const hx=(o.sx||1)/2,hz=(o.sz||1)/2;a=Math.min(a,o.x-hx);b=Math.max(b,o.x+hx);c=Math.min(c,o.z-hz);d=Math.max(d,o.z+hz);hy=Math.max(hy,o.y)});if(a>b){a=b=c=d=0}V.t=[(a+b)/2,hy/2,(c+d)/2];V.dist=Math.max(use.length<2?46:18,Math.max(b-a,d-c,hy)*1.15);redraw()};
  const focus=()=>{const o=O()[GE.sel];if(!o)return fit();V.t=cenOf(o);V.dist=Math.max(8,((o.sx||2)+(o.sz||2))*1.2);redraw()};
- const setTab=t=>{if(t=='tools'&&innerWidth>900)t='props';GE.tab=t;E.querySelectorAll('[data-p]').forEach(p=>p.classList.toggle('on',p.dataset.p==t));E.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==t));if(t=='code')codeRender()};
+ const setTab=t=>{GE.tab=t;const full=t=='code'||t=='game'||t=='tools'||innerWidth<=980;E.querySelectorAll('[data-p]').forEach(p=>p.classList.toggle('on',full?p.dataset.p==t:(p.dataset.p=='ex'||p.dataset.p=='props')));E.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==t));if(t=='code')codeRender()};
  const setTool=t=>{GE.tool=t;E.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool==t));selVis();redraw();persist()};
- const exRender=()=>{if(GE.tab=='code')codeRender();$('#exl').innerHTML=O().map((o,i)=>`<div class="ex ${i==GE.sel?'sel':''}" data-ex="${i}"><span>${icon(o)}</span> ${esc(label(o,i))}${o.mv?' ↔':''}</div>`).join('')||'<p class="mut">The level is empty. Add things from the Toolbox.</p>';$('#exl').querySelectorAll('[data-ex]').forEach(d=>d.onclick=()=>select(+d.dataset.ex));const s=$('#exl').querySelector('.sel');if(s&&s.scrollIntoView)s.scrollIntoView({block:'nearest'})};
+ const EXO={ws:1,ss:1,st:0,sp:1,sg:1,ch:0},SN={start:'When started',touch:'When touched',timer:'Every N seconds',jump:'When jumping',land:'When landing',die:'When dying',fall:'When falling',score:'When scoring',near:'When near',release:'When released',press:'When a key is pressed'};
+ const exRender=()=>{if(GE.tab=='code')codeRender();const L=$('#exl');if(!L)return;
+  const ws=[],ui=[];O().forEach((o,i)=>{(o.k=='u'?ui:ws).push([o,i])});
+  const row=([o,i])=>`<div class="ex ${i==GE.sel?'sel':''}" data-ex="${i}"><span>${icon(o)}</span> ${esc(label(o,i))}${o.mv?' ↔':''}</div>`;
+  const kids=L2=>L2.length?L2.map(row).join(''):'<div class="ex mut">Nothing here yet</div>';
+  const node=(k,ic,nm,n,inner)=>`<div class="rk-n${EXO[k]?' open':''}" data-n="${k}"><div class="rk-nh"><i class="rk-ar">${EXO[k]?'▾':'▸'}</i>${ic} <b>${nm}</b>${n==null?'':`<em>${n}</em>`}</div><div class="rk-k">${inner}</div></div>`;
+  const scr=(GE.scripts||[]).map((s,j)=>`<div class="ex" data-sc="${j}"><span>📜</span> ${esc((SN[(s.h||{}).t]||'Script')+' '+(j+1))}</div>`).join('');
+  const snd=(GE.sounds||[]).map((s,j)=>`<div class="ex" data-snd="${j}"><span>🔊</span> ${esc(s.n||('Sound '+(j+1)))}</div>`).join('');
+  L.innerHTML=node('ws','🗂️','Workspace',ws.length,kids(ws))
+   +node('ss','📜','ScriptService',(GE.scripts||[]).length,scr||'<div class="ex mut">No scripts yet — open the Scripts panel</div>')
+   +node('st','🧊','Storage',(GE.sounds||[]).length,snd||'<div class="ex mut">Sounds you upload live here</div>')
+   +node('sp','🧑','StarterPlayer',ui.length,node('sg','🖥️','StarterGui',ui.length,kids(ui))+`<div class="rk-n${EXO.ch?' open':''}" data-n="ch"><div class="rk-nh"><i class="rk-ar">${EXO.ch?'▾':'▸'}</i>🏃 <b>StarterCharacter</b></div><div class="rk-k"><div class="ex">Speed ${GE.spd} · Jump ${GE.jmp} · Gravity ${GE.grav}</div></div></div>`);
+  L.querySelectorAll('[data-ex]').forEach(d=>d.onclick=()=>select(+d.dataset.ex));
+  L.querySelectorAll('[data-sc]').forEach(d=>d.onclick=()=>setTab('code'));
+  L.querySelectorAll('[data-snd]').forEach(d=>d.onclick=()=>{try{const a=new Audio(GE.sounds[+d.dataset.snd].d);a.volume=.6;a.play().catch(()=>{})}catch(e){}});
+  L.querySelectorAll('.rk-nh').forEach(h=>h.onclick=()=>{const n=h.parentNode.dataset.n;EXO[n]=EXO[n]?0:1;exRender()});
+  const s=L.querySelector('.ex.sel');if(s&&s.scrollIntoView)s.scrollIntoView({block:'nearest'})};
  const stat=()=>{const ps=O().filter(o=>o.k=='p');$('#stn').textContent=`${GE.name} · ${ps.length} platforms · ${O().filter(o=>o.k=='c').length} coins${ps.some(o=>o.t=='goal')?'':' · no goal yet'}`};
  const all=()=>{rebuild();propsRender();exRender();stat();redraw();persist()};
  const select=i=>{GE.sel=i;selVis();propsRender();exRender();if(GE.tab=='code')codeRender();redraw();if(i>=0&&GE.tab!=='code')setTab('props')};
@@ -140,7 +172,7 @@ function gameEd(me){
  /* ----- game settings, thumbnail, test, publish ----- */
  [['gn','name'],['gd','desc'],['gk','killY'],['sp','spd'],['jp','jmp'],['gr','grav']].forEach(([i,k])=>$('#'+i).oninput=e=>{GE[k]=e.target.value;if(k=='name')stat();persist()});
  $('#gs').oninput=e=>{GE.sky=e.target.value;redraw();persist()};$('#gl').oninput=e=>{GE.light=+e.target.value;redraw();persist()};$('#gf').onchange=e=>{GE.fog=e.target.checked;persist()};$('#gg').onchange=e=>{GE.genre=e.target.value;persist()};
- $('#tp').onchange=e=>{const v=e.target.value;if(!TPL[v])return;snapH();GE.objs=TPL[v]();GE.sel=-1;if(v=='arena'){Object.assign(GE,{pvp:true,hp:100,resp:3,weapons:[WP.pistol(),WP.sword(),WP.shotgun()],startW:[0,1],wsel:0});persist();create('game');return}all();fit()};
+ $('#tp').onchange=e=>{const v=e.target.value;if(!TPL[v])return;snapH();GE.objs=v=='blank'?bp():TPL[v]();GE.sel=-1;if(v=='arena'){Object.assign(GE,{pvp:true,hp:100,resp:3,weapons:[WP.pistol(),WP.sword(),WP.shotgun()],startW:[0,1],wsel:0});persist();create('game');return}all();fit()};
  const tmb=()=>{const u=GE.thumb||(GE.keepThumb&&GE.editId?`/api/thumb/${GE.editId}?v=${Date.now()}`:'');$('#tm').style.display=u?'block':'none';$('#tm').src=u};
  $('#tu').onclick=()=>$('#tf').click();
  $('#tf').onchange=e=>{const f=e.target.files[0];if(!f)return;if(!/^image\//.test(f.type))return toast('Please choose an image.');const r=new FileReader();r.onload=()=>fitThumb(r.result,'#222',d=>{if(!d)return toast('Could not read that image.');GE.thumb=d;GE.keepThumb=false;tmb();persist()});r.readAsDataURL(f)};
