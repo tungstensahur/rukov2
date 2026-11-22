@@ -7,10 +7,31 @@ function editGame(id){api('/api/game?id='+encodeURIComponent(id)).then(r=>{if(!r
 /* Play used to join a multiplayer room before a game would start. It now starts the game in the
    browser straight away: no waiting for a room, and a weak connection cannot keep anyone out. The
    server is still told about the visit, so plays are counted and creators are paid for them (the
-   room it offers back is not joined). Every game card is solo again: its second button plays the
-   game on its own, and joining a room stays on the Servers page, where you pick one. */
+   room it offers back is not joined). Play stays solo; joining a room has its own button on the
+   card, and the Servers page still lists every room. */
 function playOnClient(g){if(!g)return;try{Promise.resolve(api('/api/servers/assign',{game:g.id})).catch(()=>{})}catch(e){}return play(g)}
 async function playAuto(g){return playOnClient(g)}
+
+/* ---------- v50: a multiplayer button stays on every game card ---------- */
+/* Play and Practice solo both run the game on the player's device; this puts playing with other
+   people back next to them, as its own button, so it is obvious which one joins a room. The game
+   bar then shows the server that was joined, e.g. "Sky Steps · Server 1". */
+async function playServer(g){if(!g)return;const r=await api('/api/servers/assign',{game:g.id});if(r&&r.server)return play(g,r.server);toast((r&&r.error)||'Could not reach a server, starting on your own.');return play(g)}
+(function(){
+ const card=gcard;
+ const solo=g=>'<button data-solo="'+g.id+'" style="width:100%;margin-top:6px;font-size:12px">Practice solo</button>';
+ /* the multiplayer button sits right after the solo one and stays inside the card, because the
+    report and like buttons are added next to whatever element they find inside each card */
+ const both=g=>solo(g)+'<button data-mp="'+g.id+'" style="width:100%;margin-top:6px;font-size:12px">🌐 Play with others</button>';
+ gcard=function(g){const h=String(card(g)),s=solo(g);return h.indexOf(s)>=0?h.replace(s,both(g)):h};
+ document.addEventListener('click',e=>{
+  const t=e.target,b=t&&t.closest?t.closest('[data-mp]'):null;
+  if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  const g=(typeof games=='function'?games():[]).find(x=>x.id==b.dataset.mp);
+  if(g)playServer(g);
+ },true);
+})();
 
 /* ---------- v49: going in opens the game on its own page ---------- */
 /* The game used to be drawn on top of the page you pressed Play on, and the address stayed there,
