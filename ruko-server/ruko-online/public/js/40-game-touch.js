@@ -1,4 +1,4 @@
-/* ---------- v40: mobile game controls — a joystick instead of the arrow buttons, and pinch to zoom ---------- */
+/* ---------- v40: mobile game controls — a joystick instead of the arrow buttons ---------- */
 (function(){
  if(window.RKTOUCH)return;
  window.RKTOUCH=1;
@@ -52,39 +52,6 @@
   ['pointerup','pointercancel','pointerleave'].forEach(ev=>base.addEventListener(ev,end));
   apply(0,0);
  }
-
- /* ---------- pinch to zoom ---------- */
- /* the game zooms by listening for the mouse wheel on its canvas, so a pinch turns into wheel steps */
- const canvas=()=>$('#game canvas');
- const zoom=dy=>{
-  const cv=canvas();
-  if(!cv||typeof cv.onwheel!='function')return;
-  try{cv.onwheel(new WheelEvent('wheel',{deltaY:dy,clientX:innerWidth/2,clientY:innerHeight/2,bubbles:true,cancelable:true}))}catch(e){}
- };
- const pts=new Map();
- let start=0;
- const dist=()=>{
-  const a=[...pts.values()];
-  if(a.length<2)return 0;
-  return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
- };
- const clear=()=>{pts.clear();start=0};
- addEventListener('pointerdown',e=>{
-  if(e.pointerType!='touch'||!canvas())return;
-  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pts.size===2)start=dist();
- },{passive:true});
- addEventListener('pointermove',e=>{
-  if(!pts.has(e.pointerId))return;
-  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pts.size<2||!start)return;
-  const d=dist();
-  const delta=start-d;
-  if(Math.abs(delta)>1.5)zoom(delta*3.4);
-  start=d;
- },{passive:true});
- ['pointerup','pointercancel'].forEach(ev=>addEventListener(ev,e=>{if(pts.delete(e.pointerId)&&pts.size<2)start=0},{passive:true}));
- addEventListener('blur',clear);
 
  /* ---------- the look of the joystick ---------- */
  function ensureStyle(){
