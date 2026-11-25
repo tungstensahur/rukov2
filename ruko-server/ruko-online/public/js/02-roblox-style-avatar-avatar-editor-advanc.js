@@ -2,7 +2,7 @@
 const DEV=()=>document.documentElement.dataset.dev;
 function detect(){document.documentElement.dataset.dev=((matchMedia('(pointer:coarse)').matches&&matchMedia('(hover:none)').matches)||/Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)||innerWidth<700)?'mobile':'desktop'}
 detect();addEventListener('resize',detect);
-const GEO={cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,20),cone:()=>new THREE.ConeGeometry(.5,1,20),dome:()=>new THREE.SphereGeometry(.5,20,12,0,6.3,0,1.5708),sphere:()=>new THREE.SphereGeometry(.5,20,14),box:()=>new THREE.BoxGeometry(1,1,1),torus:()=>new THREE.TorusGeometry(.4,.1,8,24).rotateX(1.5708)};
+const GEO={cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,20),cone:()=>new THREE.ConeGeometry(.5,.5,1,20),dome:()=>new THREE.SphereGeometry(.5,20,12,0,6.3,0,1.5708),sphere:()=>new THREE.SphereGeometry(.5,20,14),box:()=>new THREE.BoxGeometry(1,1,1),torus:()=>new THREE.TorusGeometry(.4,.1,8,24).rotateX(1.5708)};
 /* soft-edged box: a box whose vertices are pulled onto a rounded shell, so the player reads as round instead of blocky. Keeps the 6 box faces (groups) so per-face materials and UVs still work */
 function roundBox(w,h,d,r,seg){if(r==null)r=.14;r=Math.min(r,w/2,h/2,d/2);const s=seg||6,geo=new THREE.BoxGeometry(w,h,d,s,s,s),p=geo.attributes.position,n=geo.attributes.normal,v=new THREE.Vector3(),c=new THREE.Vector3(),nn=new THREE.Vector3(),hx=Math.max(0,w/2-r),hy=Math.max(0,h/2-r),hz=Math.max(0,d/2-r);
  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);c.set(Math.max(-hx,Math.min(hx,v.x)),Math.max(-hy,Math.min(hy,v.y)),Math.max(-hz,Math.min(hz,v.z)));nn.subVectors(v,c);if(nn.lengthSq()<1e-12)nn.set(0,0,1);else nn.normalize();p.setXYZ(i,c.x+nn.x*r,c.y+nn.y*r,c.z+nn.z*r);n.setXYZ(i,nn.x,nn.y,nn.z)}
@@ -20,24 +20,16 @@ function faceTex(c,f){const k=document.createElement('canvas');k.width=k.height=
  else if(f==3){x.fillRect(16,24,14,4);x.fillRect(34,24,14,4);x.beginPath();x.moveTo(22,48);x.lineTo(42,48);x.stroke()}
  else{if(f==1)x.fillRect(12,22,40,9);else{x.beginPath();x.arc(22,26,4,0,7);x.fill();x.beginPath();x.arc(42,26,4,0,7);x.fill()}x.beginPath();x.arc(32,36,14,.25,2.9);x.stroke()}
  return new THREE.CanvasTexture(k)}
-function makePlayer(hat,av,nm){av=Object.assign({skin:'#f2f3f8',shirt:'#9b6bf2',pants:'#2f2f70',face:0},av);const g=new THREE.Group(),Lm=c=>new THREE.MeshBasicMaterial({color:c}),sk=Lm(av.skin);
- /* Flat colour, no outline and no shading: a rounded head, a torso that widens towards the hem,
-    flat arms hanging from the shoulders and two flat legs. The proportions come straight from the
-    reference drawing (head about a fifth of the height, the hem as wide as the two legs together).
-    Same limb pivots as before, so walking and jumping animation still works. */
- const hem=(geo,h,amt)=>{const p=geo.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i);p.setX(i,p.getX(i)*(1+amt*(.5-y/h)))}p.needsUpdate=true;return geo};
+function makePlayer(hat,av,nm){av=Object.assign({skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},av);const g=new THREE.Group(),Lm=c=>new THREE.MeshLambertMaterial({color:c}),sk=Lm(av.skin);
  const bx=(w,h,d,m,y,seg,r)=>{const o=new THREE.Mesh(roundBox(w,h,d,r||.14,seg||6),m);o.position.y=y;return o};
- const fm=Lm(av.shirt),bm=Lm(av.shirt),tu=av.teeUrl||(av.tee?teeURL(av.tee):null);
- const body=new THREE.Mesh(hem(roundBox(1.02,1.11,.5,.08,8),1.11,.18),[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm]);body.position.y=1.745;g.add(body);
- if(tu)g.userData.tw=loadTee(tu).then(im=>{const cv=document.createElement('canvas');cv.width=cv.height=256;const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);const t=new THREE.CanvasTexture(cv);for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}}).catch(()=>{});
- g.add(bx(.72,.6,.62,[sk,sk,sk,sk,new THREE.MeshBasicMaterial({map:faceTex(av.skin,av.face)}),sk],2.7,8,.14));
- const limb=(x,m,top,rz,w,d,h)=>{const p=new THREE.Group();p.position.set(x,top,0);const a=bx(w,h,d,m,-h/2,6,.1);a.rotation.z=rz||0;p.add(a);g.add(p);return p},pm=Lm(av.pants);
- g.userData.l={la:limb(-.75,sk,2.3,-.06,.48,.34,1.07),ra:limb(.75,sk,2.3,.06,.48,.34,1.07),ll:limb(-.325,pm,1.27,0,.57,.5,1.27),rl:limb(.325,pm,1.27,0,.57,.5,1.27)};
+ const fm=Lm(av.shirt),bm=Lm(av.shirt),tu=av.teeUrl||(av.tee?teeURL(av.tee):null);g.add(bx(1.2,1.2,.6,[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm],1.8,8,.13));if(tu)g.userData.tw=loadTee(tu).then(im=>{const cv=document.createElement('canvas');cv.width=cv.height=256;const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);const t=new THREE.CanvasTexture(cv);for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}}).catch(()=>{});g.add(bx(.7,.7,.7,[sk,sk,sk,sk,new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),sk],2.75,8,.12));
+ const limb=(x,m,top)=>{const p=new THREE.Group();p.position.set(x,top,0);p.add(bx(.55,1.2,.55,m,-.6,6,.11));g.add(p);return p},pm=Lm(av.pants);
+ g.userData.l={la:limb(-.88,sk,2.4),ra:limb(.88,sk,2.4),ll:limb(-.3,pm,1.2),rl:limb(.3,pm,1.2)};
  (Array.isArray(hat)?hat:hat?[hat]:[]).forEach(h=>{const m=hatMesh(h);m.position.set(...(SL[h.slot]||SL.head));g.add(m)});if(nm)setTag(g,nm);return g}
 function gearList(me,overrides){const H=hats(),base={};for(const slot of['head','face','back']){const id=(me.gear||{})[slot];if(id){const h=H.find(x=>x.id==id);if(h)base[slot]=h}}
  if(overrides)for(const slot in overrides){if(overrides[slot]==null)delete base[slot];else base[slot]=overrides[slot]}
  return Object.values(base).filter(Boolean)}
-function avatar(){const me=cur(),av=Object.assign({skin:'#f2f3f8',shirt:'#9b6bf2',pants:'#2f2f70',face:0},me.av);me.gear=me.gear||{};let rot=.4;
+function avatar(){const me=cur(),av=Object.assign({skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},me.av);me.gear=me.gear||{};let rot=.4;
  const sk=['#f5cd30','#ffd9a8','#e0ac69','#c68642','#8d5524','#5b3a1e','#a5d6ff','#b6ff9f'],own=me.owned.map(i=>hats().find(h=>h.id==i)).filter(h=>h&&h.kind!='shirt'),tees=me.owned.map(i=>hats().find(h=>h.id==i)).filter(h=>h&&h.kind=='shirt');
  const bySlot=s=>own.filter(h=>(h.slot||'head')==s),SLN2={head:'Head',face:'Face',back:'Back'};
  const slotRow=slot=>{const items=bySlot(slot),cur2=me.gear[slot];return `<label>${SLN2[slot]} <span class="mut" style="font-weight:400">(${items.length} owned)</span></label><div class="chips">${items.length?`<button data-slot="${slot}" data-id="" class="${!cur2?'on':''}">None</button>${items.map(h=>`<button data-slot="${slot}" data-id="${h.id}" class="${cur2==h.id?'on':''}" style="width:64px;padding:2px" title="${esc(h.name)}"><img src="${thumb(h)}" style="width:100%" alt="${esc(h.name)}"></button>`).join('')}`:`<span class="mut">No ${SLN2[slot].toLowerCase()} items yet — find some in the Catalog.</span>`}</div>`};
