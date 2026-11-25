@@ -18,7 +18,7 @@ const FACES=[
 
 const STARTER=1;               // the faces every account owns from the start
 const MAXFACE=40;              // the server keeps av.face between 0 and 40
-const MAXIMG=24000;            // an uploaded face is 64x64, so this is generous
+const MAXIMG=80000;            // an uploaded face is 256x256, so this leaves room for detail
 const faceId=i=>'f'+i;
 
 let seeded=0,cleaned=0;
