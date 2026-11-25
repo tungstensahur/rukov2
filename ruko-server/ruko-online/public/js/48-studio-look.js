@@ -68,4 +68,16 @@
   st.id = 'rk48-ststudio';
   st.textContent = css;
   document.head.appendChild(st);
+
+  // The Studio's scripting language (RukoScript) is three files that are only needed on this screen,
+  // so they are fetched from here, in order, the first time the site loads. Each of them guards
+  // itself, so being asked for twice does no harm.
+  try {
+    ['60-rukoscript.js', '60b-rukoscript-reader.js', '60c-rukoscript-editor.js'].forEach(function (f) {
+      const s = document.createElement('script');
+      s.src = 'js/' + f + '?v=60';
+      s.async = false;
+      document.head.appendChild(s);
+    });
+  } catch (e) {}
 })();
