@@ -254,3 +254,80 @@ input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--a
  paint();[80,400,1200,2600].forEach(t=>setTimeout(paint,t));
  setInterval(paint,2000);
 })();
+/* ---------- v59: the game-site look ----------
+   Same flat colours and the same one accent, but the page should feel like a place you play in
+   rather than a dashboard you fill in: a lit backdrop, cards that sit on a solid edge like arcade
+   panels, buttons that press in when you tap them, and tabs that pop when they are the one you are
+   on. Sizes and spacing stay put, so nothing that already worked moves around. */
+(function(){
+ if(document.getElementById('rk-game-look'))return;
+ const st=document.createElement('style');st.id='rk-game-look';
+ st.textContent=`
+:root{--edge:#c9cfe2;--pop:0 3px 0 var(--edge)}
+html,body{
+ background:
+  radial-gradient(1000px 460px at 50% -200px,rgba(61,91,255,.13),transparent 72%),
+  radial-gradient(700px 420px at 96% -60px,rgba(255,210,63,.12),transparent 70%),
+  var(--bg);
+ background-attachment:fixed;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--edge:#20242f}}
+:root[data-theme="dark"]{--edge:#20242f}
+
+/* headings read like a level title */
+h2{font-size:27px;font-weight:900;letter-spacing:-.025em;gap:10px}
+h2::before{content:"";width:7px;height:24px;border-radius:4px;background:var(--ac);flex:none}
+h2 .mut,h2 span.mut{font-weight:600}
+
+/* the top bar gets a lit edge and a chunkier active tab */
+#top{background:linear-gradient(180deg,#1b1f2e,#12141c);border-bottom:2px solid #2a2f45}
+#top nav button{border-width:2px;border-radius:12px}
+#top nav button.on,#top nav button.pri{box-shadow:0 2px 0 #1d2c9e}
+#coins,#tkcoins{
+ background:#1d2130;border:1px solid #2d3242;border-radius:999px;
+ padding:3px 11px;font-weight:800;letter-spacing:.01em;
+}
+
+/* cards sit on a solid edge, and lift when you point at them */
+.card{border-width:2px;border-radius:20px;box-shadow:var(--pop)}
+.tile,.cat-tile,.gcard,.wc{
+ border-width:2px;border-radius:20px;box-shadow:var(--pop);
+ transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
+}
+.tile:hover,.cat-tile:hover,.gcard:hover{transform:translateY(-4px);box-shadow:0 7px 0 var(--edge);border-color:var(--ac)}
+.tile:active,.cat-tile:active{transform:translateY(-1px);box-shadow:0 4px 0 var(--edge)}
+
+/* buttons are keys: they press down */
+button{border-width:2px;border-radius:12px;box-shadow:var(--pop);font-weight:700}
+button:hover{border-color:var(--ac)}
+button:active{transform:translateY(3px);box-shadow:none}
+button.pri{background:var(--ac);border-color:var(--ac-d);box-shadow:0 3px 0 var(--ac-d)}
+button.pri:hover{background:var(--ac-d)}
+button.pri:active{transform:translateY(3px);box-shadow:none}
+button.on{box-shadow:0 3px 0 rgba(0,0,0,.28)}
+.chips button,.tabs button,.sc button{box-shadow:none}
+.chips button{padding:7px 14px}
+.chips button.on{box-shadow:0 2px 0 rgba(0,0,0,.22)}
+
+/* tab strips: the chosen one pops */
+.tabs{border-width:2px;border-radius:16px;box-shadow:var(--pop)}
+.tabs button.on,.rk-avtabs button.on{box-shadow:0 2px 0 rgba(0,0,0,.25)}
+
+/* the avatar plate on Home reads as a stage */
+.hav{box-shadow:inset 0 0 0 2px var(--bd);border-radius:18px}
+
+/* inputs stay calm, they are not toys */
+input,select,textarea{border-width:2px;border-radius:12px}
+`;
+ document.head.appendChild(st);
+ // The bar never showed which tab you are on; a game site should. The route lives in the hash, so the
+ // matching button is lit quietly from here instead of touching the router.
+ const mark=()=>{
+  const seg=String(location.hash||'').replace(/^#\/?/,'').split('/')[0];
+  document.querySelectorAll('#top nav button').forEach(b=>{
+   const r=b.dataset.r==null?'':b.dataset.r;
+   b.classList.toggle('on',r?r===seg:seg==='');
+  });
+ };
+ addEventListener('hashchange',mark);setTimeout(mark,300);setInterval(mark,1500);
+})();
