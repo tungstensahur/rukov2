@@ -284,6 +284,9 @@ function serveAsset(c){
 
 module.exports=function(ctx){
  const p=ctx.p;
+ // Faces are shop items (see faces.js). Put them in the item table before anything looks them up,
+ // and give this account the starter set if it does not have it yet.
+ try{require('./faces.js').ensure(ctx.D,ctx.save,ctx.me)}catch(e){console.error('faces:',e&&e.message)}
  if(p.indexOf('/api/asset')===0)return assets(ctx);
  if(p==='/api/daily')return daily(ctx);
  if(p==='/api/reports')return reports(ctx);
