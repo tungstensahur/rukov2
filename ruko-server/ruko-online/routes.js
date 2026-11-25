@@ -92,3 +92,122 @@ function daily(c){
   return send(res,200,{ok:1,item:id});
  }
  if(action!=='claim')return send(res,400,{error:'Unknown action.'});
+ const s=me.streak=me.streak||{last:'',n:0};
+ if(s.last===today())return send(res,400,{error:'You already collected today. Come back tomorrow.'});
+ s.n=s.last===yesterday()?(s.n||0)+1:1;
+ s.last=today();
+ const reward=rewardFor(s.n);
+ me.coins=Math.max(0,(me.coins|0)+reward);
+ let item=null;
+ const cfg=D.meta.streak||{};
+ if(s.n%5===0&&cfg.item){
+  const h=(D.hats||[]).find(x=>x.id===cfg.item);
+  if(h){if((me.owned||[]).indexOf(h.id)<0)(me.owned=me.owned||[]).push(h.id);item={id:h.id,name:h.name};}
+ }
+ save();
+ return send(res,200,{ok:1,day:s.n,reward,coins:me.coins,total:me.coins,item,status:dailyStatus(D,me)});
+}
+
+// Every game's likes and plays, plus running totals for each creator (their games' likes and
+// plays, and the likes their catalog items collected). Small enough to fetch in one go.
+function stats(c){
+ const {req,res,me,send,D,PRICE}=c;
+ const comments=D.meta.comments||{};
+ const gs={},users={};
+ const bucket=n=>(users[n]=users[n]||{visits:0,likes:0,games:0,itemLikes:0,sales:0});
+ for(const g of D.games||[]){
+  const lk=likesOf(D,g.id),pl=playsOf(D,g.id),cm=(comments['game:'+g.id]||[]).length;
+  gs[g.id]={likes:lk,plays:pl,comments:cm};
+  const u=bucket(g.creator||'Ruko');
+  u.games++;u.visits+=pl;u.likes+=lk;
+ }
+ const items={};
+ for(const id in (PRICE||{}))items[id]={id,creator:'Ruko'};
+ for(const h of D.hats||[])items[h.id]={id:h.id,creator:h.creator||'Ruko'};
+ for(const id in items){
+  const lk=likesOf(D,id),sales=Math.max(0,(D.sales||{})[id]|0);
+  const u=bucket(items[id].creator);
+  u.itemLikes+=lk;u.likes+=lk;u.sales+=sales;
+ }
+ const liked=me?Object.keys(gs).filter(id=>((D.likes||{})[id]||[]).includes(me.name)):[];
+ return send(res,200,{games:gs,users,liked});
+}
+
+function glike(c){
+ const {req,res,b,me,send,need,D,save}=c;
+ if(!me)return need();
+ if(req.method!=='POST')return send(res,405,{error:'Use POST.'});
+ const id=String(b.id||'');
+ const g=(D.games||[]).find(x=>x.id===id)||['g1','g2','g3'].map(x=>({id:x})).find(x=>x.id===id);
+ if(!g)return send(res,404,{error:'No such game.'});
+ const L=D.likes[id]=D.likes[id]||[],i=L.indexOf(me.name);
+ if(i>=0)L.splice(i,1);else L.push(me.name);
+ save();
+ return send(res,200,{n:L.length,liked:i<0});
+}
+
+function comments(c){
+ const {req,res,b,me,send,need,D,save,staff,PRICE}=c;
+ if(!me)return need();
+ if(req.method!=='POST'){
+  const q=new URL(req.url,'http://x').searchParams;
+  const kind=q.get('kind')==='game'?'game':'item',id=String(q.get('id')||'').slice(0,60);
+  const list=((D.meta.comments||{})[kind+':'+id]||[]);
+  return send(res,200,{kind,id,count:list.length,list:list.slice(-40).map(m=>({id:m.id,by:m.by,text:m.text,at:m.at,mine:m.by===me.name,staff:!!staff(me)}))});
+ }
+ const kind=b.kind==='game'?'game':'item';
+ const id=String(b.id||'').slice(0,60);
+ if(!id)return send(res,400,{error:'Nothing to comment on.'});
+ const okTarget=kind==='game'?(D.games||[]).some(g=>g.id===id):((D.hats||[]).some(h=>h.id===id)||!!(PRICE&&id in PRICE));
+ if(!okTarget)return send(res,404,{error:'That is not in Ruko anymore.'});
+ const store=D.meta.comments=D.meta.comments||{};
+ const key=kind+':'+id;
+ const list=store[key]=store[key]||[];
+ if(b.del){
+  const i=list.findIndex(m=>m.id===String(b.del));
+  if(i<0)return send(res,404,{error:'That comment is gone.'});
+  if(list[i].by!==me.name&&!staff(me))return send(res,403,{error:'That is not your comment.'});
+  list.splice(i,1);save();
+  return send(res,200,{ok:1,count:list.length,list:list.slice(-40).map(m=>({id:m.id,by:m.by,text:m.text,at:m.at,mine:m.by===me.name,staff:!!staff(me)}))});
+ }
+ if(me.muted)return send(res,403,{error:'You are muted.'});
+ const now=Date.now();
+ if(now-(me.lastComment||0)<2500)return send(res,429,{error:'One comment at a time, please.'});
+ const text=clean(b.text).slice(0,MAXCOMMENT);
+ if(text.length<1)return send(res,400,{error:'Write something first.'});
+ if(list.length>=MAXPERITEM)list.shift();
+ const m={id:'m'+now.toString(36)+Math.random().toString(36).slice(2,6),by:me.name,text,at:now};
+ list.push(m);me.lastComment=now;save();
+ return send(res,200,{ok:1,comment:{id:m.id,by:m.by,text:m.text,at:m.at,mine:true,staff:!!staff(me)},count:list.length,list:list.slice(-40).map(x=>({id:x.id,by:x.by,text:x.text,at:x.at,mine:x.by===me.name,staff:!!staff(me)}))});
+}
+
+// A creator's own numbers: last 7 days of visits per game, likes, comments and item sales.
+function analytics(c){
+ const {req,res,me,send,need,D}=c;
+ if(!me)return need();
+ const vis=D.meta.visits||{},comments=D.meta.comments||{};
+ const days=[];for(let i=6;i>=0;i--)days.push(dayOf(Date.now()-i*DAY));
+ const mine=(D.games||[]).filter(g=>(g.creator||'').toLowerCase()===me.name.toLowerCase());
+ const games=mine.map(g=>{
+  const series=days.map(d=>((vis[g.id]||{})[d]|0));
+  return {id:g.id,name:g.name,genre:g.genre||'Obby',plays:playsOf(D,g.id),likes:likesOf(D,g.id),
+   comments:(comments['game:'+g.id]||[]).length,today:series[series.length-1],week:series.reduce((a,b)=>a+b,0),series};
+ });
+ const items=(D.hats||[]).filter(h=>(h.creator||'').toLowerCase()===me.name.toLowerCase()).map(h=>({id:h.id,name:h.name,likes:likesOf(D,h.id),sales:Math.max(0,(D.sales||{})[h.id]|0),comments:(comments['item:'+h.id]||[]).length}));
+ games.sort((a,b)=>b.week-a.week||b.plays-a.plays);
+ const series=days.map((d,i)=>games.reduce((a,g)=>a+g.series[i],0));
+ const totals={plays:games.reduce((a,g)=>a+g.plays,0),likes:games.reduce((a,g)=>a+g.likes,0),
+  comments:games.reduce((a,g)=>a+g.comments,0),week:series.reduce((a,b)=>a+b,0),
+  games:games.length,itemLikes:items.reduce((a,h)=>a+h.likes,0),sales:items.reduce((a,h)=>a+h.sales,0)};
+ return send(res,200,{days,games,items,totals,series,name:me.name});
+}
+
+// The creator's own unpublished games, newest first. Only the owner can list them.
+function drafts(c){
+ const {req,res,me,send,need,D}=c;
+ if(!me)return need();
+ const mine=(D.games||[]).filter(g=>g.draft&&(g.creator||'').toLowerCase()===me.name.toLowerCase())
+  .sort((a,b)=>(b.at||0)-(a.at||0))
+  .map(g=>({id:g.id,name:g.name||'Untitled',at:g.at||0,objs:(g.objs||[]).length,scripts:(g.scripts||[]).length,ht:!!g.thumb}));
+ return send(res,200,{drafts:mine});
+}
