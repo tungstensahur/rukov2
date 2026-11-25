@@ -21,10 +21,21 @@ function faceTex(c,f){const k=document.createElement('canvas');k.width=k.height=
  else{if(f==1)x.fillRect(12,22,40,9);else{x.beginPath();x.arc(22,26,4,0,7);x.fill();x.beginPath();x.arc(42,26,4,0,7);x.fill()}x.beginPath();x.arc(32,36,14,.25,2.9);x.stroke()}
  return new THREE.CanvasTexture(k)}
 function makePlayer(hat,av,nm){av=Object.assign({skin:'#f5cd30',shirt:'#2f6fed',pants:'#4a9c3a',face:0},av);const g=new THREE.Group(),Lm=c=>new THREE.MeshLambertMaterial({color:c}),sk=Lm(av.skin);
+ /* Five soft slabs instead of a stack of cubes: a rounded head, a torso that is narrow at the
+    shoulders and wider at the hem, two arms hanging from the shoulders and two legs. Every part is
+    drawn twice — a slightly larger copy in a dark colour behind it — so the body gets the thin
+    outline the game's 2D art has. Same limb pivots as before, so the walking and jumping animation
+    still works. */
+ const OUT=new THREE.MeshBasicMaterial({color:'#232447',side:THREE.BackSide});
+ const edge=m=>{const o=new THREE.Mesh(m.geometry,OUT);o.scale.setScalar(1.06);m.add(o);return m};
+ const hem=(geo,h,amt)=>{const p=geo.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i);p.setX(i,p.getX(i)*(1+amt*(.5-y/h)))}p.needsUpdate=true;return geo};
  const bx=(w,h,d,m,y,seg,r)=>{const o=new THREE.Mesh(roundBox(w,h,d,r||.14,seg||6),m);o.position.y=y;return o};
- const fm=Lm(av.shirt),bm=Lm(av.shirt),tu=av.teeUrl||(av.tee?teeURL(av.tee):null);g.add(bx(1.2,1.2,.6,[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm],1.8,8,.13));if(tu)g.userData.tw=loadTee(tu).then(im=>{const cv=document.createElement('canvas');cv.width=cv.height=256;const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);const t=new THREE.CanvasTexture(cv);for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}}).catch(()=>{});g.add(bx(.7,.7,.7,[sk,sk,sk,sk,new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),sk],2.75,8,.12));
- const limb=(x,m,top)=>{const p=new THREE.Group();p.position.set(x,top,0);p.add(bx(.55,1.2,.55,m,-.6,6,.11));g.add(p);return p},pm=Lm(av.pants);
- g.userData.l={la:limb(-.88,sk,2.4),ra:limb(.88,sk,2.4),ll:limb(-.3,pm,1.2),rl:limb(.3,pm,1.2)};
+ const fm=Lm(av.shirt),bm=Lm(av.shirt),tu=av.teeUrl||(av.tee?teeURL(av.tee):null);
+ const body=new THREE.Mesh(hem(roundBox(1.02,1.16,.58,.09,8),1.16,.34),[Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),Lm(av.shirt),fm,bm]);body.position.y=1.82;g.add(edge(body));
+ if(tu)g.userData.tw=loadTee(tu).then(im=>{const cv=document.createElement('canvas');cv.width=cv.height=256;const x=cv.getContext('2d');x.fillStyle=av.shirt;x.fillRect(0,0,256,256);x.drawImage(im,0,0,256,256);const t=new THREE.CanvasTexture(cv);for(const m of[fm,bm]){m.map=t;m.color.set('#ffffff');m.needsUpdate=true}}).catch(()=>{});
+ g.add(edge(bx(.82,.86,.72,[sk,sk,sk,sk,new THREE.MeshLambertMaterial({map:faceTex(av.skin,av.face)}),sk],2.67,8,.2)));
+ const limb=(x,m,top,rz,w,d)=>{const p=new THREE.Group();p.position.set(x,top,0);const a=bx(w,1.16,d,m,-.58,6,.1);a.rotation.z=rz||0;p.add(edge(a));g.add(p);return p},pm=Lm(av.pants);
+ g.userData.l={la:limb(-.82,sk,2.32,-.15,.52,.42),ra:limb(.82,sk,2.32,.15,.52,.42),ll:limb(-.28,pm,1.22,0,.54,.5),rl:limb(.28,pm,1.22,0,.54,.5)};
  (Array.isArray(hat)?hat:hat?[hat]:[]).forEach(h=>{const m=hatMesh(h);m.position.set(...(SL[h.slot]||SL.head));g.add(m)});if(nm)setTag(g,nm);return g}
 function gearList(me,overrides){const H=hats(),base={};for(const slot of['head','face','back']){const id=(me.gear||{})[slot];if(id){const h=H.find(x=>x.id==id);if(h)base[slot]=h}}
  if(overrides)for(const slot in overrides){if(overrides[slot]==null)delete base[slot];else base[slot]=overrides[slot]}
