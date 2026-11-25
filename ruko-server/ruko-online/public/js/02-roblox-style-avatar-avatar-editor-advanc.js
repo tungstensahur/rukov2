@@ -2,7 +2,7 @@
 const DEV=()=>document.documentElement.dataset.dev;
 function detect(){document.documentElement.dataset.dev=((matchMedia('(pointer:coarse)').matches&&matchMedia('(hover:none)').matches)||/Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)||innerWidth<700)?'mobile':'desktop'}
 detect();addEventListener('resize',detect);
-const GEO={cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,20),cone:()=>new THREE.ConeGeometry(.5,.5,1,20),dome:()=>new THREE.SphereGeometry(.5,20,12,0,6.3,0,1.5708),sphere:()=>new THREE.SphereGeometry(.5,20,14),box:()=>new THREE.BoxGeometry(1,1,1),torus:()=>new THREE.TorusGeometry(.4,.1,8,24).rotateX(1.5708)};
+const GEO={cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,20),cone:()=>new THREE.ConeGeometry(.5,1,20),dome:()=>new THREE.SphereGeometry(.5,20,12,0,6.3,0,1.5708),sphere:()=>new THREE.SphereGeometry(.5,20,14),box:()=>new THREE.BoxGeometry(1,1,1),torus:()=>new THREE.TorusGeometry(.4,.1,8,24).rotateX(1.5708)};
 /* soft-edged box: a box whose vertices are pulled onto a rounded shell, so the player reads as round instead of blocky. Keeps the 6 box faces (groups) so per-face materials and UVs still work */
 function roundBox(w,h,d,r,seg){if(r==null)r=.14;r=Math.min(r,w/2,h/2,d/2);const s=seg||6,geo=new THREE.BoxGeometry(w,h,d,s,s,s),p=geo.attributes.position,n=geo.attributes.normal,v=new THREE.Vector3(),c=new THREE.Vector3(),nn=new THREE.Vector3(),hx=Math.max(0,w/2-r),hy=Math.max(0,h/2-r),hz=Math.max(0,d/2-r);
  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);c.set(Math.max(-hx,Math.min(hx,v.x)),Math.max(-hy,Math.min(hy,v.y)),Math.max(-hz,Math.min(hz,v.z)));nn.subVectors(v,c);if(nn.lengthSq()<1e-12)nn.set(0,0,1);else nn.normalize();p.setXYZ(i,c.x+nn.x*r,c.y+nn.y*r,c.z+nn.z*r);n.setXYZ(i,nn.x,nn.y,nn.z)}
