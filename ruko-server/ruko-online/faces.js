@@ -1,42 +1,27 @@
 /* ---------- faces are shop items ---------- */
 /* A face used to be a number on the avatar and every drawing was free. They are items now, in the
    same table as hats, so the catalog lists them, the buy route charges for them and the avatar
-   checks that you own one before wearing it. This module only has to put them in that table: the
-   rest of the server already knows how to sell an item. The first four are the starter set, so
-   every account is given them the first time it is seen.
+   checks that you own one before wearing it.
 
-   routes.js asks for ensure() on each request, so the items exist before any page can ask for the
-   catalog, whether or not the data came from Redis or from the local file. */
+   The game ships with one face: the smile. Every other face is a picture the official Ruko account
+   uploads with /api/faces (see routes.js), and add() below puts it in the item table. The rest of
+   the server already knows how to sell an item, so nothing else has to change.
+
+   Earlier builds seeded 21 more drawings here and gave them to everybody. clean() takes those back
+   the first time this server sees a request: the items are removed, accounts lose the ids, and
+   anyone still wearing one is put back on the smile. It runs once per process, does nothing when
+   there is nothing to do, and never touches an uploaded face (those carry a picture). */
 
 const FACES=[
- {n:'Smile',p:0,d:'The friendly one everybody starts with.'},
- {n:'Cool',p:0,d:'Sunglasses on, unbothered.'},
- {n:'Surprised',p:0,d:'Eyes wide, mouth open.'},
- {n:'Stoic',p:0,d:'No expression at all. Very professional.'},
- {n:'Grin',p:40,d:'A big, toothy grin.'},
- {n:'Wink',p:40,d:'One eye closed, still charming.'},
- {n:'Tongue',p:60,d:'Tongue out, no apologies.'},
- {n:'Angry',p:60,d:'Heavy brows and a scowl.'},
- {n:'Sad',p:60,d:'A single tear, for drama.'},
- {n:'Laughing',p:80,d:'Eyes shut, mouth wide open.'},
- {n:'Sleepy',p:80,d:'Half awake, with a little z.'},
- {n:'Hearts',p:120,d:'Heart eyes, obviously in love.'},
- {n:'Stars',p:120,d:'Star eyes, seeing stars.'},
- {n:'Dizzy',p:100,d:'Swirly eyes and a wobble.'},
- {n:'Cat',p:150,d:'Slit eyes, whiskers, tiny smile.'},
- {n:'Robot',p:150,d:'Square eyes and a speaker mouth.'},
- {n:'Blush',p:90,d:'Warm cheeks and a shy smile.'},
- {n:'Smirk',p:70,d:'One brow up, half a smile.'},
- {n:'Cyclops',p:110,d:'One big eye, one big smile.'},
- {n:'Derp',p:90,d:'Uneven eyes and a lolling tongue.'},
- {n:'Vampire',p:200,d:'Two fangs and a hungry look.'},
- {n:'Nerd',p:130,d:'Round glasses and buck teeth.'}
+ {n:'Smile',p:0,d:'The friendly one everybody starts with.'}
 ];
 
-const STARTER=4;               // how many faces every account owns from the start
+const STARTER=1;               // the faces every account owns from the start
+const MAXFACE=40;              // the server keeps av.face between 0 and 40
+const MAXIMG=24000;            // an uploaded face is 64x64, so this is generous
 const faceId=i=>'f'+i;
 
-let seeded=0;                  // the items themselves are only checked once per process
+let seeded=0,cleaned=0;
 
 // Give one account its starter faces. Cheap enough to run on every request: it does nothing
 // unless something is missing.
@@ -50,6 +35,37 @@ function give(me,save){
  if(changed)save();
 }
 
+// Take the old built-in faces back out. Only the ones this file still lists stay; uploads stay.
+function clean(D,save){
+ const keep={};
+ FACES.forEach((_,i)=>keep[faceId(i)]=1);
+ let changed=0;
+ const before=(D.hats||[]).length;
+ D.hats=(D.hats||[]).filter(h=>{
+  if(!h||h.kind!=='face'||h.img)return true;   // uploads and everything that is not a face stay
+  if(keep[h.id])return true;
+  if(h.base===1)return false;                  // seeded by an earlier build: gone
+  return true;
+ });
+ if(D.hats.length!==before)changed++;
+ const ids={},faces={};
+ D.hats.forEach(h=>{
+  if(!h)return;
+  if(h.id)ids[h.id]=1;
+  if(h.kind==='face')faces[String(h.face|0)]=1;
+ });
+ for(const k in(D.users||{})){
+  const u=D.users[k];
+  if(!u)continue;
+  if(Array.isArray(u.owned)){
+   const kept=u.owned.filter(id=>!(/^f\d{1,2}$/.test(String(id))&&!ids[id]));
+   if(kept.length!==u.owned.length){u.owned=kept;changed++}
+  }
+  if(u.av&&(u.av.face|0)>0&&!faces[String(u.av.face|0)]){u.av.face=0;changed++}
+ }
+ if(changed)save();
+}
+
 function ensure(D,save,me){
  if(!D||!Array.isArray(D.hats))return;
  if(!seeded){
@@ -57,7 +73,6 @@ function ensure(D,save,me){
   let added=0;
   for(let i=0;i<FACES.length;i++){
    const fd=FACES[i],id=faceId(i);
-   // an item with this id may already exist from an earlier run, or a player may have made one
    if(D.hats.some(h=>h&&h.id===id))continue;
    D.hats.push({id,kind:'face',slot:'faces',face:i,name:fd.n,desc:fd.d,creator:'Ruko',price:fd.p,
     status:'approved',at:at+i,base:1});
@@ -68,7 +83,28 @@ function ensure(D,save,me){
   for(const k in(D.users||{}))give(D.users[k],save);
   if(added)save();
  }
+ if(!cleaned){
+  cleaned=1;
+  try{clean(D,save)}catch(e){console.error('faces clean:',e&&e.message)}
+ }
  give(me,save);
 }
 
-module.exports={ensure,FACES,STARTER,faceId};
+// An uploaded face: the picture is the whole front of the head, so it needs no drawing code.
+// The next free number is used, so a face keeps its number for good.
+function add(D,o){
+ if(!D||!Array.isArray(D.hats))return {error:'No item table.'};
+ const used={};
+ D.hats.forEach(h=>{if(h&&h.kind==='face')used[h.face|0]=1});
+ let i=1;
+ while(used[i]&&i<MAXFACE)i++;
+ if(used[i])return {error:'The face list is full. Remove a face first.'};
+ const p=Math.max(0,Math.min(1000,o.price|0));
+ const h={id:faceId(i),kind:'face',slot:'faces',face:i,
+  name:String(o.name||'Face').slice(0,20),desc:String(o.desc||'').slice(0,80),
+  creator:o.creator||'Ruko',price:p,status:'approved',base:0,at:Date.now(),img:String(o.img||'')};
+ D.hats.push(h);
+ return {h};
+}
+
+module.exports={ensure,add,FACES,STARTER,faceId,MAXIMG,MAXFACE};
