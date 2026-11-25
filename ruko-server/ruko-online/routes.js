@@ -211,3 +211,120 @@ function drafts(c){
   .map(g=>({id:g.id,name:g.name||'Untitled',at:g.at||0,objs:(g.objs||[]).length,scripts:(g.scripts||[]).length,ht:!!g.thumb}));
  return send(res,200,{drafts:mine});
 }
+
+/* ---------- Pictures and sounds for games ----------
+   Uploads are small by design: the browser shrinks pictures before sending them, and everything
+   here is capped so one game cannot fill the data store. Reading a file back needs no login,
+   because the game itself loads it through an <img> or an <audio> tag. */
+const MAXASSETS=8,MAXIMG=250000,MAXSND=320000,MAXTOTAL=900000;
+const ASSET_RE=/^data:(image\/(?:png|jpeg|webp|gif)|audio\/(?:mpeg|mp3|wav|ogg|webm));base64,([A-Za-z0-9+/=]+)$/;
+const newAssetId=()=>'a'+Math.random().toString(36).slice(2,10);
+function ownsGame(D,me,gid){
+ const g=(D.games||[]).find(x=>x.id===gid);
+ if(!g)return {error:'No such game.',code:404};
+ if((g.creator||'').toLowerCase()!==me.name.toLowerCase()&&!me.admin)return {error:'That game is not yours.',code:403};
+ return {g};
+}
+function assets(c){
+ const {req,res,p,b,me,send,need,D,save}=c;
+ if(p==='/api/assets'){
+  if(!me)return need();
+  const gid=String(new URL(req.url,'http://x').searchParams.get('game')||'');
+  const box=(D.assets||{})[gid]||{};
+  return send(res,200,{assets:Object.keys(box).map(id=>({id,k:box[id].k,n:box[id].n||'',size:(box[id].d||'').length}))});
+ }
+ if(p==='/api/assets/upload'){
+  if(!me)return need();
+  const gid=String(b.game||'');
+  const own=ownsGame(D,me,gid);
+  if(own.error)return send(res,own.code||404,{error:own.error});
+  const kind=b.kind==='snd'?'snd':'img';
+  const data=String(b.data||'');
+  const m=ASSET_RE.exec(data);
+  if(!m)return send(res,400,{error:'That file type is not allowed.'});
+  if((m[1].indexOf('image/')===0)!==(kind==='img'))return send(res,400,{error:'That file does not belong in this slot.'});
+  if(data.length>(kind==='snd'?MAXSND:MAXIMG))return send(res,413,{error:kind==='snd'?'That sound is too big (about 250 KB max).':'That picture is too big.'});
+  const box=D.assets=D.assets||{};
+  const mine=box[gid]=box[gid]||{};
+  const ids=Object.keys(mine);
+  if(ids.length>=MAXASSETS)return send(res,400,{error:'This game already has '+MAXASSETS+' files. Remove one first.'});
+  const total=ids.reduce((a,id)=>a+(mine[id].d||'').length,0);
+  if(total+data.length>MAXTOTAL)return send(res,400,{error:'This game is out of upload space.'});
+  let id;do{id=newAssetId()}while(mine[id]);
+  mine[id]={k:kind,m:m[1],n:clean(b.name).slice(0,40),d:m[2],at:Date.now()};
+  save();
+  return send(res,200,{id,url:'/api/asset/'+encodeURIComponent(gid)+'/'+id});
+ }
+ if(p==='/api/assets/delete'){
+  if(!me)return need();
+  const gid=String(b.game||'');
+  const own=ownsGame(D,me,gid);
+  if(own.error)return send(res,own.code||404,{error:own.error});
+  const box=(D.assets||{})[gid];
+  const id=String(b.id||'');
+  if(!box||!box[id])return send(res,404,{error:'No such file.'});
+  delete box[id];
+  if(!Object.keys(box).length)delete D.assets[gid];
+  save();
+  return send(res,200,{ok:1});
+ }
+ return serveAsset(c);
+}
+// Reading a file back: no login needed, cached forever (ids never change).
+function serveAsset(c){
+ const {res,D}=c;
+ const m=/^\/api\/asset\/([\w-]{1,40})\/([a-z0-9]{4,14})$/.exec(c.p);
+ if(!m)return false;
+ const box=(D.assets||{})[m[1]]||{},a=box[m[2]];
+ if(!a){res.writeHead(404,{'content-type':'text/plain'});res.end('Not found');return true}
+ res.writeHead(200,{'content-type':a.m,'cache-control':'public, max-age=31536000, immutable'});
+ res.end(Buffer.from(a.d||'','base64'));
+ return true;
+}
+
+/* ---------- faces the official account uploads ----------
+   The smile is the only face that ships with the game. Every other face is a 64x64 picture the Ruko
+   account uploads here; it becomes a normal catalog item, so the shop, the buy route and the avatar
+   need no changes. A GET returns the list without the pictures (they are already in /api/hats). */
+function facesRoute(c){
+ const {req,res,b,me,send,need,D,save}=c;
+ const F=require('./faces.js');
+ if(req.method!=='POST'){
+  const list=(D.hats||[]).filter(h=>h&&h.kind==='face')
+   .map(h=>({id:h.id,face:h.face|0,name:h.name||'Face',creator:h.creator||'',price:Math.max(0,h.price|0),pic:!!h.img}))
+   .sort((a,b)=>a.face-b.face);
+  return send(res,200,{faces:list});
+ }
+ if(!me)return need();
+ if(!me.admin)return send(res,403,{error:'Only the official Ruko account can add faces.'});
+ const img=String(b.img||'');
+ if(!/^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(img))
+  return send(res,400,{error:'That is not a picture. Use a PNG, JPEG or WebP.'});
+ if(img.length>F.MAXIMG)return send(res,413,{error:'That picture is too big. A small square one works best.'});
+ const r=F.add(D,{name:clean(b.name).slice(0,20),desc:clean(b.desc).slice(0,80),price:b.price|0,img,creator:me.name});
+ if(r.error)return send(res,400,{error:r.error});
+ // the account that adds a face can wear it straight away
+ if(Array.isArray(me.owned)&&!me.owned.includes(r.h.id))me.owned.push(r.h.id);
+ save();
+ return send(res,200,{ok:1,id:r.h.id,face:r.h.face,name:r.h.name,price:r.h.price});
+}
+
+module.exports=function(ctx){
+ const p=ctx.p;
+ // Faces are shop items (see faces.js). Put them in the item table before anything looks them up,
+ // and give this account the starter set if it does not have it yet.
+ try{require('./faces.js').ensure(ctx.D,ctx.save,ctx.me)}catch(e){console.error('faces:',e&&e.message)}
+ if(p.indexOf('/api/faces')===0)return facesRoute(ctx);
+ if(p.indexOf('/api/asset')===0)return assets(ctx);
+ if(p==='/api/daily')return daily(ctx);
+ if(p==='/api/reports')return reports(ctx);
+ if(p==='/api/stats')return stats(ctx);
+ if(p==='/api/glike')return glike(ctx);
+ if(p==='/api/comments')return comments(ctx);
+ if(p==='/api/drafts')return drafts(ctx);
+ if(p==='/api/analytics')return analytics(ctx);
+ return reports(ctx);
+};
+module.exports.rewardFor=rewardFor;
+module.exports.dailyStatus=dailyStatus;
+module.exports.noteVisit=noteVisit;
