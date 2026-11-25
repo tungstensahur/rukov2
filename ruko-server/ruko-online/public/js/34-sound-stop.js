@@ -54,3 +54,18 @@
   else if(sawGame)stopAll();
  },400);
 })();
+/* ---------- the studio's language ----------
+   RukoScript is three files that are only needed on the Studio screen, so they are fetched here
+   instead of being listed in the page. This file is one the server stamps with its own timestamp on
+   every deploy, so a new copy of the language is never served from a browser's cache — which is
+   exactly what happens to a file the page names without a version. Each of the three guards itself. */
+(function(){
+ if(window.RKS_LOADER)return;
+ window.RKS_LOADER=1;
+ ['60-rukoscript.js','60b-rukoscript-reader.js','60c-rukoscript-editor.js'].forEach(name=>{
+  const s=document.createElement('script');
+  s.src='js/'+name+'?v='+Date.now();
+  s.async=false;
+  document.head.appendChild(s);
+ });
+})();

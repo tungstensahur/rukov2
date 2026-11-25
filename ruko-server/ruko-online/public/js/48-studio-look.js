@@ -70,9 +70,12 @@
   document.head.appendChild(st);
 
   // The Studio's scripting language (RukoScript) is three files that are only needed on this screen,
-  // so they are fetched from here, in order, the first time the site loads. Each of them guards
-  // itself, so being asked for twice does no harm.
+  // so they are fetched here, in order, the first time the site loads. Each of them guards itself.
+  // 34-sound-stop.js asks for them too, and that file is version-stamped on every deploy, so it is
+  // the one that normally does it; this only covers the case where it did not run.
   try {
+    if (window.RKS_LOADER) return;
+    window.RKS_LOADER = 1;
     ['60-rukoscript.js', '60b-rukoscript-reader.js', '60c-rukoscript-editor.js'].forEach(function (f) {
       const s = document.createElement('script');
       s.src = 'js/' + f + '?v=60';
