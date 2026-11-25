@@ -170,6 +170,15 @@ input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--a
 [data-dev=mobile] #top nav button{color:#c9cee0;border:1px solid transparent;border-radius:10px;font-size:11.5px}
 [data-dev=mobile] #top nav button.on{background:var(--ac);color:#fff}
 `;
+ // Faces are shop items now, and their drawings and shop hooks live in their own file. It is
+ // started here, the same way 39-clothes.js starts this one: with a timestamp, never a stale copy.
+ try{
+  if(!window.RKFACE){
+   const f=document.createElement('script');
+   f.src='js/56-faces.js?v='+Date.now();
+   document.body.appendChild(f);
+  }
+ }catch(e){}
  // The in-game chat is part of the same look, and this file is the last one the page loads, so it
  // starts it the same way 39-clothes.js starts this one.
  try{
