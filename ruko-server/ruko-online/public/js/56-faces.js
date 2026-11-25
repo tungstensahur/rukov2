@@ -9,6 +9,7 @@
    front of the head.
 
    This file is the drawing side and the shop side of that:
+     - faces are kept at 256 pixels square, so they stay sharp instead of blocky;
      - the smile is still drawn in code, in the old flat style;
      - an uploaded face's picture is what the head shows, laid over the skin colour;
      - a face item's thumbnail is the face itself, not an empty hat;
@@ -18,13 +19,20 @@
  if(window.RKFACE)return;
  window.RKFACE=1;
 
+ /* ---------- the size every face is kept at ---------- */
+ /* Faces used to be 64 pixels square, which is why they looked blocky once the head filled a phone
+    screen. They are 256 now: the drawing below is still written on a 64 grid and scaled up, and an
+    uploaded picture is kept at 256, so the head and the picker both show it sharp. */
+ const SZ=256;
+
  /* ---------- the one drawing that ships ---------- */
  /* Flat skin, thick black lines, no shading: the style the faces always had. It is only used for
     the smile now; anything else is a picture from the catalog. */
  function drawFace(skin,f){
   const k=document.createElement('canvas');
-  k.width=k.height=64;
+  k.width=k.height=SZ;
   const x=k.getContext('2d');
+  x.scale(SZ/64,SZ/64);
   x.fillStyle=skin;x.fillRect(0,0,64,64);
   x.fillStyle=x.strokeStyle='#222';
   x.lineWidth=4;x.lineCap=x.lineJoin='round';
@@ -51,9 +59,9 @@
  };
 
  /* ---------- faces Ruko uploaded ---------- */
- /* An uploaded face carries its picture in the item itself, as a small data URL, so it needs no
-    extra request and no drawing: the picture is drawn on the front of the head. Images are loaded
-    once and kept, and the cached face pictures are cleared when one arrives. */
+ /* An uploaded face carries its picture in the item itself, as a data URL, so it needs no extra
+    request and no drawing: the picture is drawn on the front of the head. Images are loaded once
+    and kept, and the cached face pictures are cleared when one arrives. */
  const IMG={},URLS={};
  function pic(it){
   if(!it||!it.img)return null;
@@ -71,20 +79,22 @@
  /* An uploaded picture is laid over the skin colour, never on bare canvas: the head's material has
     no transparency, so anything see-through in the picture would come out black. Painting the skin
     first means a face with a clear background shows the player's skin, exactly as it looks in the
-    image editor. */
+    image editor. Smoothing is on so a picture smaller than 256 is blended rather than blocky. */
  function comp(skin,it){
   const k=document.createElement('canvas');
-  k.width=k.height=64;
+  k.width=k.height=SZ;
   const x=k.getContext('2d');
+  x.imageSmoothingEnabled=true;
+  if('imageSmoothingQuality' in x)x.imageSmoothingQuality='high';
   const body=skin||'#f5cd30';
-  x.fillStyle=body;x.fillRect(0,0,64,64);
+  x.fillStyle=body;x.fillRect(0,0,SZ,SZ);
   const im=pic(it);
-  if(im&&im.complete&&im.naturalWidth)x.drawImage(im,0,0,64,64);
+  if(im&&im.complete&&im.naturalWidth)x.drawImage(im,0,0,SZ,SZ);
   return k;
  }
- /* Three small replacements: the drawing of a face, the little picture of it, and the texture that
-    goes on the front of the head. Every one of them shows the uploaded picture when the face has
-    one, and the smile otherwise — so no removed face can come back from an old number. */
+ /* Three small replacements: the drawing of a face, the picture of it, and the texture that goes on
+    the front of the head. Every one of them shows the uploaded picture when the face has one, and
+    the smile otherwise — so no removed face can come back from an old number. */
  try{
   faceCanvas=function(skin,f){
    const it=itemOf(f);
@@ -113,8 +123,8 @@
      im.onload=()=>{
       try{
        const x=cv.getContext('2d');
-       x.fillStyle=skin||'#f5cd30';x.fillRect(0,0,64,64);
-       x.drawImage(im,0,0,64,64);
+       x.fillStyle=skin||'#f5cd30';x.fillRect(0,0,SZ,SZ);
+       x.drawImage(im,0,0,SZ,SZ);
        t.needsUpdate=true;
       }catch(e){}
       try{old&&old()}catch(e){}
@@ -160,7 +170,7 @@
    return '<button data-face="'+i+'" class="'+(i===on?'on ':'')+(lock?'rkf-lock':'')+'"'+
     ' title="'+esc(tip)+(lock&&price?' — '+price+' Rukos':'')+'"'+
     ' style="padding:2px;width:62px;position:relative">'+
-    '<img src="'+faceURL(skin,i)+'" style="width:100%;image-rendering:pixelated" alt="'+esc(tip)+'">'+
+    '<img src="'+faceURL(skin,i)+'" style="width:100%" alt="'+esc(tip)+'">'+
     (lock&&price?'<span class="rkf-tag">🔒 '+price+'</span>':'')+
     '</button>';
   }).join('');
@@ -199,9 +209,8 @@
  }
 
  /* ---------- uploading a face (Ruko only) ---------- */
- /* The picture is cropped to a square and shrunk to 64x64, which is the size the head uses, so one
-    face costs a few kilobytes and the catalog stays quick. The clear parts of the picture stay
-    clear: they show the player's skin on the head. */
+ /* The picture is cropped to a square and kept at 256, the size the head uses, so thin lines and
+    small details survive. The clear parts of the picture stay clear: they show the player's skin. */
  function upload(){
   const inp=document.createElement('input');
   inp.type='file';
@@ -218,11 +227,13 @@
     im.onerror=()=>toast('Could not read that picture.');
     im.onload=()=>{
      const c=document.createElement('canvas');
-     c.width=c.height=64;
+     c.width=c.height=SZ;
      const x=c.getContext('2d');
-     const s=Math.max(64/im.width,64/im.height),w=im.width*s,h=im.height*s;
-     x.drawImage(im,(64-w)/2,(64-h)/2,w,h);
-     let d=c.toDataURL('image/webp',.9);
+     x.imageSmoothingEnabled=true;
+     if('imageSmoothingQuality' in x)x.imageSmoothingQuality='high';
+     const s=Math.max(SZ/im.width,SZ/im.height),w=im.width*s,h=im.height*s;
+     x.drawImage(im,(SZ-w)/2,(SZ-h)/2,w,h);
+     let d=c.toDataURL('image/webp',.92);
      if(d.indexOf('data:image/webp')!==0)d=c.toDataURL('image/png');
      const name=(prompt('Name for this face?','New face')||'').replace(/\s+/g,' ').trim().slice(0,20);
      if(!name)return;
