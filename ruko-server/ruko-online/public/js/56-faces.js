@@ -10,7 +10,7 @@
 
    This file is the drawing side and the shop side of that:
      - the smile is still drawn in code, in the old flat style;
-     - an uploaded face's picture is what the head shows;
+     - an uploaded face's picture is what the head shows, laid over the skin colour;
      - a face item's thumbnail is the face itself, not an empty hat;
      - the avatar's face picker lists the faces the shop actually has, with locks and prices;
      - a face item page wears the face instead of trying to hang it on the head. */
@@ -68,35 +68,58 @@
   }
   return im;
  }
+ /* An uploaded picture is laid over the skin colour, never on bare canvas: the head's material has
+    no transparency, so anything see-through in the picture would come out black. Painting the skin
+    first means a face with a clear background shows the player's skin, exactly as it looks in the
+    image editor. */
+ function comp(skin,it){
+  const k=document.createElement('canvas');
+  k.width=k.height=64;
+  const x=k.getContext('2d');
+  const body=skin||'#f5cd30';
+  x.fillStyle=body;x.fillRect(0,0,64,64);
+  const im=pic(it);
+  if(im&&im.complete&&im.naturalWidth)x.drawImage(im,0,0,64,64);
+  return k;
+ }
  /* Three small replacements: the drawing of a face, the little picture of it, and the texture that
     goes on the front of the head. Every one of them shows the uploaded picture when the face has
     one, and the smile otherwise — so no removed face can come back from an old number. */
  try{
   faceCanvas=function(skin,f){
    const it=itemOf(f);
-   const k=document.createElement('canvas');
-   k.width=k.height=64;
-   const x=k.getContext('2d');
-   if(it&&it.img){
-    const im=pic(it);
-    if(im&&im.complete&&im.naturalWidth)x.drawImage(im,0,0,64,64);
-    else{x.fillStyle=skin;x.fillRect(0,0,64,64)}
-    return k;
-   }
+   if(it&&it.img)return comp(skin,it);
    return drawFace(skin,f);
   };
   faceURL=function(skin,f){
    const it=itemOf(f);
-   if(it&&it.img)return it.img;
+   if(it&&it.img){
+    const im=pic(it);
+    // while the picture is still loading, show the picture itself; once it is here, show it on skin
+    if(!(im&&im.complete&&im.naturalWidth))return it.img;
+    const key='u|'+skin+'|'+it.id;
+    return URLS[key]||(URLS[key]=comp(skin,it).toDataURL());
+   }
    const key=skin+'|'+(f|0);
    return URLS[key]||(URLS[key]=faceCanvas(skin,f).toDataURL());
   };
   faceTex=function(skin,f){
    const it=itemOf(f);
    if(it&&it.img){
-    const im=pic(it),t=new THREE.Texture(im);
-    if(im.complete)t.needsUpdate=true;
-    else{const old=im.onload;im.onload=()=>{t.needsUpdate=true;try{old()}catch(e){}}}
+    const cv=comp(skin,it),t=new THREE.CanvasTexture(cv),im=pic(it);
+    if(im&&im.complete&&im.naturalWidth)t.needsUpdate=true;
+    else if(im){
+     const old=im.onload;
+     im.onload=()=>{
+      try{
+       const x=cv.getContext('2d');
+       x.fillStyle=skin||'#f5cd30';x.fillRect(0,0,64,64);
+       x.drawImage(im,0,0,64,64);
+       t.needsUpdate=true;
+      }catch(e){}
+      try{old&&old()}catch(e){}
+     };
+    }
     return t;
    }
    return new THREE.CanvasTexture(faceCanvas(skin,f));
@@ -177,7 +200,8 @@
 
  /* ---------- uploading a face (Ruko only) ---------- */
  /* The picture is cropped to a square and shrunk to 64x64, which is the size the head uses, so one
-    face costs a few kilobytes and the catalog stays quick. */
+    face costs a few kilobytes and the catalog stays quick. The clear parts of the picture stay
+    clear: they show the player's skin on the head. */
  function upload(){
   const inp=document.createElement('input');
   inp.type='file';
