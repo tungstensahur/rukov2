@@ -62,7 +62,8 @@ async function togglePush(){
   buildMoreSheet(cur());
  }catch(e){toast('Could not enable notifications on this device.')}
 }
-function buildMoreSheet(me){if(!me)return;const items=[...document.querySelectorAll('#top nav button[data-r]')].filter(b=>b.id!=='adm'||me.admin||me.mod);
+function buildMoreSheet(me){if(!me)return;// Settings is added again below, with the rest of the account rows, so the bar's own copy is left out
+ const items=[...document.querySelectorAll('#top nav button[data-r]')].filter(b=>b.dataset.r!=='settings'&&(b.id!=='adm'||me.admin||me.mod));
  $('#msb').innerHTML=items.map(b=>`<button class="msi" data-r="${b.dataset.r}">${b.querySelector('.ic').outerHTML}<span>${b.querySelector('.lb').textContent}</span></button>`).join('')+'<button class="msi" id="mssettings"><span class="ic">⚙️</span><span>Settings</span></button><button class="msi" id="mspush"><span class="ic">🔔</span><span>Notifications…</span></button><button class="msi" id="msprofile"><span class="ic">👤</span><span>Profile</span></button><button class="msi" id="mslogout"><span class="ic">🚪</span><span>Log out</span></button>';
  $('#msb').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{location.hash='#/'+b.dataset.r;closeMore()});
  $('#msprofile').onclick=()=>{closeMore();goProfile()};$('#mslogout').onclick=doLogout;$('#mspush').onclick=()=>{closeMore();togglePush()};
