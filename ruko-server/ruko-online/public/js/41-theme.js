@@ -193,3 +193,64 @@ input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--a
  st.textContent=CSS;
  document.head.appendChild(st);
 })();
+/* ---------- v57: the tab icons ----------
+   The bars used emoji, which render differently on every phone and read like a chat app rather than
+   a company. These are drawn in the page instead: 24-unit line icons with rounded joins, one accent
+   part each, the same weight for all of them. They take the button's colour, so the active tab still
+   lights up, and one observer keeps the bars that are built later (top bar buttons, the More sheet,
+   the avatar tabs) in step. */
+(function(){
+ if(window.rkIcons)return;window.rkIcons=1;
+ const A='var(--ac,#5b4bff)';
+ const S=b=>'<svg class="rki" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+b+'</svg>';
+ const I={
+  home:S('<path d="M3.6 10.7 12 4l8.4 6.7"/><path d="M6 9.5V19a1.6 1.6 0 0 0 1.6 1.6h8.8A1.6 1.6 0 0 0 18 19V9.5"/><path stroke="'+A+'" d="M10.2 20.6v-4.1a1.8 1.8 0 0 1 3.6 0v4.1"/>'),
+  catalog:S('<path d="M4.9 8.6h14.2l-1.2 10.1a1.7 1.7 0 0 1-1.7 1.5H7.8a1.7 1.7 0 0 1-1.7-1.5Z"/><path stroke="'+A+'" d="M9.1 8.6V7.2a2.9 2.9 0 0 1 5.8 0v1.4"/><path d="M9.7 13.4h4.6"/>'),
+  friends:S('<circle cx="9.4" cy="8.6" r="3.3"/><path d="M3.4 19.7a6 6 0 0 1 12 0"/><circle cx="16.6" cy="7.9" r="2.7" stroke="'+A+'"/><path stroke="'+A+'" d="M15.6 14.1a5.1 5.1 0 0 1 5 5.4"/>'),
+  messages:S('<path d="M20.4 12.3c0 3.9-3.8 7.1-8.4 7.1a10 10 0 0 1-2.7-.4l-4.7 1.5 1.1-3.4a6.9 6.9 0 0 1-2-4.8c0-3.9 3.8-7.1 8.4-7.1s8.3 3.2 8.3 7.1Z"/><circle cx="8.6" cy="12.3" r=".95" fill="'+A+'" stroke="none"/><circle cx="12" cy="12.3" r=".95" fill="'+A+'" stroke="none"/><circle cx="15.4" cy="12.3" r=".95" fill="'+A+'" stroke="none"/>'),
+  avatar:S('<circle cx="12" cy="8.8" r="4.1"/><path d="M4.5 20.5a7.6 7.6 0 0 1 15 0"/><path stroke="'+A+'" d="M10.4 9.9a2.1 2.1 0 0 0 3.2 0"/>'),
+  create:S('<rect x="3.5" y="3.5" width="12.6" height="12.6" rx="3.4"/><path d="M9.8 7.4v4.8M7.4 9.8h4.8"/><path stroke="'+A+'" d="M17.6 14.8l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1Z"/>'),
+  more:S('<path d="M4 7.4h16M4 12h11"/><path stroke="'+A+'" d="M4 16.6h7"/>'),
+  games:S('<rect x="2.6" y="7.2" width="18.8" height="9.8" rx="4.4"/><path d="M7.7 10.3v3.6M5.9 12.1h3.6"/><circle cx="16.1" cy="11" r="1.15" fill="'+A+'" stroke="none"/><circle cx="18.4" cy="13.3" r="1.15" fill="'+A+'" stroke="none"/>'),
+  tickets:S('<path d="M3.6 8.4a1.6 1.6 0 0 1 1.6-1.6h13.6a1.6 1.6 0 0 1 1.6 1.6v2a2.2 2.2 0 0 0 0 4.4v2a1.6 1.6 0 0 1-1.6 1.6H5.2a1.6 1.6 0 0 1-1.6-1.6v-2a2.2 2.2 0 0 0 0-4.4Z"/><path stroke="'+A+'" d="M15.4 9.1l1 2 2.2.3-1.6 1.5.4 2.1-2-1-2 1 .4-2.1-1.6-1.5 2.2-.3Z"/>'),
+  reports:S('<path d="M6.2 20.6V3.8"/><path d="M6.2 4.5h11.6l-2.1 4.1 2.1 4.1H6.2Z" fill="'+A+'" fill-opacity=".22"/>'),
+  admin:S('<path d="M12 3.4l7.2 2.6v5.6c0 4.2-3 7.5-7.2 8.8-4.2-1.3-7.2-4.6-7.2-8.8V6Z"/><path stroke="'+A+'" d="M8.9 12.1l2.2 2.2 4.2-4.4"/>'),
+  settings:S('<path d="M3.6 8.4h5.9M14.5 8.4h5.9M3.6 15.6h9.9M18.5 15.6h1.9"/><circle cx="12" cy="8.4" r="2.5" stroke="'+A+'"/><circle cx="16" cy="15.6" r="2.5" stroke="'+A+'"/>'),
+  clothes:S('<path d="M8.7 4.7a3.3 3.3 0 0 0 6.6 0l4.2 2.4-1.9 3.3-2-1.1v8H8.4v-8l-2 1.1-1.9-3.3Z"/><path stroke="'+A+'" d="M8.7 4.7 12 6.2l3.3-1.5"/>'),
+  hat:S('<path d="M8.3 15.4V5.4a1.6 1.6 0 0 1 1.6-1.6h4.2a1.6 1.6 0 0 1 1.6 1.6v10"/><path d="M3.9 15.4h16.2a1.4 1.4 0 0 1 0 2.8H3.9a1.4 1.4 0 0 1 0-2.8Z"/><path stroke="'+A+'" d="M8.3 12.6h7.4"/>'),
+  profile:S('<circle cx="12" cy="8.4" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
+  logout:S('<path d="M13.2 4.6H6.9a1.6 1.6 0 0 0-1.6 1.6v11.6a1.6 1.6 0 0 0 1.6 1.6h6.3"/><path stroke="'+A+'" d="M11.4 12h8.8M17 8.8l3.2 3.2-3.2 3.2"/>'),
+  bell:S('<path d="M6.6 10.2a5.4 5.4 0 0 1 10.8 0c0 3 .9 4.6 1.8 5.6H4.8c.9-1 1.8-2.6 1.8-5.6Z"/><path d="M10 19.1a2.1 2.1 0 0 0 4 0"/>'),
+  coin:'<svg class="rki" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.6" fill="#ffd23f" stroke="#c08a0a" stroke-width="1.6"/><path d="M9.9 16.2V8.2h2.9a2.4 2.4 0 0 1 0 4.8H9.9M12.5 13.1l2.5 3.1" fill="none" stroke="#7a5500" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+ };
+ const K=[['ticket','tickets'],['message','messages'],['catalog','catalog'],['friend','friends'],['report','reports'],['admin','admin'],['avatar','avatar'],['create','create'],['studio','create'],['setting','settings'],['more','more'],['game','games'],['body','avatar'],['cloth','clothes'],['accessor','hat'],['hat','hat'],['profile','profile'],['log out','logout'],['notification','bell'],['home','home']];
+ const keyOf=t=>{t=(t||'').toLowerCase();for(const[k,v]of K)if(t.indexOf(k)>=0)return v;return null};
+ const st=document.createElement('style');st.id='rk-icons';
+ st.textContent='.ic>.rki{width:1.2em;height:1.2em;display:block}#coins>.rki,.tkbal>.rki{width:1.25em;height:1.25em;display:inline-block;vertical-align:-.22em}#coins{display:inline-flex;align-items:center;gap:5px}';
+ document.head.appendChild(st);
+ const paint=()=>{
+  const gm=document.getElementById('game');if(gm&&gm.style.display&&gm.style.display!='none')return;
+  document.querySelectorAll('.ic').forEach(s=>{
+   if(s.dataset.rki)return;
+   const b=s.closest('button,a,li,div[data-r]')||s.parentElement;
+   const lb=b&&b.querySelector('.lb');
+   // Some bars put the label in a plain span next to the icon, so fall back to the whole button and
+   // strip everything that is not a letter (the emoji itself would otherwise match nothing).
+   const name=lb?lb.textContent:(b?b.textContent:'');
+   const k=keyOf(String(name).replace(/[^A-Za-z ]+/g,' ')+' '+(b?(b.getAttribute('aria-label')||b.getAttribute('title')||''):''));
+   if(!k||!I[k])return;s.innerHTML=I[k];s.dataset.rki=k;
+  });
+  // The two balances in the top bar are plain text that other modules rewrite, so they are painted here
+  // as text plus icon instead of being changed where they are set.
+  const c=document.getElementById('coins');
+  if(c&&c.textContent.indexOf('\u{1FA99}')>=0)c.innerHTML=I.coin+'<span>'+c.textContent.replace('\u{1FA99}','').trim()+'</span>';
+  const k=document.getElementById('tkcoins');
+  if(k&&k.textContent.indexOf('\u{1F39F}')>=0)k.innerHTML=I.tickets+'<span>'+k.textContent.replace(/[\u{1F39F}\u{FE0F}]/gu,'').trim()+'</span>';
+ };
+ // A timer rather than an animation frame: bars can appear while the tab is in the background, and
+ // frames are throttled there, but the icons still have to be there when the page is looked at.
+ let q=0;const soon=()=>{if(q)return;q=setTimeout(()=>{q=0;try{paint()}catch(e){}},40)};
+ try{new MutationObserver(soon).observe(document.body,{childList:true,subtree:true,characterData:true})}catch(e){}
+ paint();[80,400,1200,2600].forEach(t=>setTimeout(paint,t));
+ setInterval(paint,2000);
+})();
